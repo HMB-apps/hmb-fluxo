@@ -12,6 +12,10 @@ import { ProjectsPage } from '../pages/ProjectsPage'
 import { BoardPage } from '../pages/BoardPage'
 import { CompletedPage } from '../pages/CompletedPage'
 import { TrashPage } from '../pages/TrashPage'
+import { MyDayPage } from '../pages/MyDayPage'
+import { TeamPage } from '../pages/TeamPage'
+import { CalendarPage } from '../pages/CalendarPage'
+import { TimelinePage } from '../pages/TimelinePage'
 import { getPendingInvitationToken } from '../auth/pendingInvitation'
 
 export function AppRoutes() {
@@ -54,12 +58,12 @@ export function AppRoutes() {
       {user && !needsOrganization && (
         <Route element={<AppLayout />}>
           <Route index element={<Navigate to="/meu-dia" replace />} />
-          <Route path="/meu-dia" element={<PlaceholderPage title="Meu dia" phase="Fase 3" />} />
-          <Route path="/equipe" element={<PlaceholderPage title="Equipe" phase="Fase 3" />} />
+          <Route path="/meu-dia" element={<MyDayPage />} />
+          <Route path="/equipe" element={<TeamPage />} />
           <Route path="/caixa-de-entrada" element={<PlaceholderPage title="Caixa de entrada" phase="Fase 5" />} />
-          <Route path="/linha-do-tempo" element={<PlaceholderPage title="Linha do tempo" phase="Fase 3/4" />} />
+          <Route path="/linha-do-tempo" element={<TimelinePage />} />
           <Route path="/quadro" element={<BoardPage />} />
-          <Route path="/calendario" element={<PlaceholderPage title="Calendário" phase="Fase 3" />} />
+          <Route path="/calendario" element={<CalendarPage />} />
           <Route path="/clientes" element={<ClientsPage />} />
           <Route path="/clientes/:id" element={<ClientDetailPage />} />
           <Route path="/projetos" element={<ProjectsPage />} />

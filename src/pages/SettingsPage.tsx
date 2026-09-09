@@ -14,6 +14,7 @@ import { branding } from '../config/branding'
 import { useCategories } from '../hooks/useOrgData'
 import { useRealtimeTable } from '../hooks/useRealtimeTable'
 import { createCategory, updateCategory } from '../data/repositories/categoryRepository'
+import { WorkScheduleSection } from '../components/settings/WorkScheduleSection'
 
 export function SettingsPage() {
   const { profile, organization, user } = useAuth()
@@ -141,6 +142,11 @@ export function SettingsPage() {
         <p>
           {profile?.name} — {profile?.email}
         </p>
+      </section>
+
+      <section className="settings-section">
+        <h2>Meu horário de trabalho</h2>
+        <WorkScheduleSection />
       </section>
 
       <section className="settings-section">

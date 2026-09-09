@@ -1,9 +1,23 @@
 import { useMemo, useState } from 'react'
+import { DndContext, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
 import { useAuth } from '../auth/AuthProvider'
 import { useCategories, useClients, useMembers, useProjects, useTasks } from '../hooks/useOrgData'
 import { TaskFormModal } from '../components/tasks/TaskFormModal'
-import { TASK_PRIORITY_LABELS, TASK_STATUS_LABELS } from '../domain/task'
+import { KanbanColumn } from '../components/tasks/KanbanColumn'
+import { updateTask } from '../data/repositories/taskRepository'
+import { TASK_STATUS_LABELS } from '../domain/task'
 import type { TaskListItem, TaskStatus } from '../domain/task'
+
+const BOARD_STATUSES: TaskStatus[] = [
+  'inbox',
+  'needs_review',
+  'planned',
+  'in_progress',
+  'waiting_client',
+  'waiting_internal',
+  'paused',
+  'done',
+]
 
 export function BoardPage() {
   const { user } = useAuth()
@@ -14,16 +28,17 @@ export function BoardPage() {
   const { items: members } = useMembers()
 
   const [editing, setEditing] = useState<TaskListItem | 'new' | null>(null)
-  const [statusFilter, setStatusFilter] = useState('')
   const [clientFilter, setClientFilter] = useState('')
   const [projectFilter, setProjectFilter] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('')
   const [assigneeFilter, setAssigneeFilter] = useState('')
   const [search, setSearch] = useState('')
+  const [hideEmpty, setHideEmpty] = useState(false)
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
 
   const filtered = useMemo(() => {
     return tasks.filter((task) => {
-      if (statusFilter && task.status !== statusFilter) return false
       if (clientFilter && task.clientId !== clientFilter) return false
       if (projectFilter && task.projectId !== projectFilter) return false
       if (categoryFilter && task.categoryId !== categoryFilter) return false
@@ -36,7 +51,30 @@ export function BoardPage() {
       }
       return true
     })
-  }, [tasks, statusFilter, clientFilter, projectFilter, categoryFilter, assigneeFilter, search])
+  }, [tasks, clientFilter, projectFilter, categoryFilter, assigneeFilter, search])
+
+  const columns = useMemo(() => {
+    const byStatus = new Map<TaskStatus, TaskListItem[]>()
+    for (const status of BOARD_STATUSES) byStatus.set(status, [])
+    for (const task of filtered) {
+      if (byStatus.has(task.status)) byStatus.get(task.status)!.push(task)
+    }
+    return BOARD_STATUSES.filter((s) => !hideEmpty || (byStatus.get(s)?.length ?? 0) > 0).map((status) => ({
+      status,
+      tasks: byStatus.get(status) ?? [],
+    }))
+  }, [filtered, hideEmpty])
+
+  async function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event
+    if (!over) return
+    const newStatus = over.id as TaskStatus
+    const task = tasks.find((t) => t.id === active.id)
+    if (!task || task.status === newStatus) return
+    if (task.scheduleLocked) return
+    await updateTask(task.id, task.rowVersion, { status: newStatus })
+    reload()
+  }
 
   return (
     <div>
@@ -49,14 +87,6 @@ export function BoardPage() {
 
       <div className="filters-bar">
         <input placeholder="Buscar por título ou descrição" value={search} onChange={(e) => setSearch(e.target.value)} />
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-          <option value="">Todos os status</option>
-          {Object.entries(TASK_STATUS_LABELS).map(([value, label]) => (
-            <option key={value} value={value}>
-              {label}
-            </option>
-          ))}
-        </select>
         <select value={clientFilter} onChange={(e) => setClientFilter(e.target.value)}>
           <option value="">Todos os clientes</option>
           {clients.map((c) => (
@@ -91,56 +121,30 @@ export function BoardPage() {
             </option>
           ))}
         </select>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
+          <input type="checkbox" checked={hideEmpty} onChange={(e) => setHideEmpty(e.target.checked)} />
+          Ocultar colunas vazias
+        </label>
       </div>
 
       {error && <p className="auth-error">{error}</p>}
 
       {loading ? (
         <p>Carregando…</p>
-      ) : filtered.length === 0 ? (
-        <div className="empty-state">Nenhuma tarefa encontrada com esses filtros.</div>
       ) : (
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>Título</th>
-              <th>Cliente</th>
-              <th>Status</th>
-              <th>Prioridade</th>
-              <th>Responsável</th>
-              <th>Prazo</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((task) => (
-              <tr key={task.id} onClick={() => setEditing(task)}>
-                <td>
-                  {task.title}
-                  {task.tags.length > 0 && (
-                    <div>
-                      {task.tags.map((tag) => (
-                        <span key={tag.id} className="tag-chip">
-                          {tag.name}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </td>
-                <td>{task.clientName ?? '—'}</td>
-                <td>{TASK_STATUS_LABELS[task.status as TaskStatus]}</td>
-                <td>
-                  {task.manualPriority && (
-                    <span className={`pill priority-${task.manualPriority}`}>
-                      {TASK_PRIORITY_LABELS[task.manualPriority]}
-                    </span>
-                  )}
-                </td>
-                <td>{task.assigneeName ?? 'Sem responsável'}</td>
-                <td>{task.deadlineAt ? new Date(task.deadlineAt).toLocaleDateString('pt-BR') : '—'}</td>
-              </tr>
+        <DndContext sensors={sensors} onDragEnd={(e) => void handleDragEnd(e)}>
+          <div className="kanban-board">
+            {columns.map(({ status, tasks: columnTasks }) => (
+              <KanbanColumn
+                key={status}
+                status={status}
+                label={TASK_STATUS_LABELS[status]}
+                tasks={columnTasks}
+                onOpenTask={setEditing}
+              />
             ))}
-          </tbody>
-        </table>
+          </div>
+        </DndContext>
       )}
 
       {editing && (

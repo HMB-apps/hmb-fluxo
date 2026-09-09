@@ -11,6 +11,127 @@ export type Database = {
   }
   public: {
     Tables: {
+      calendar_blocks: {
+        Row: {
+          created_at: string
+          created_by: string
+          end_at: string
+          id: string
+          organization_id: string
+          start_at: string
+          title: string
+          type: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          end_at: string
+          id?: string
+          organization_id: string
+          start_at: string
+          title: string
+          type?: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          end_at?: string
+          id?: string
+          organization_id?: string
+          start_at?: string
+          title?: string
+          type?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'calendar_blocks_created_by_fkey'
+            columns: ['created_by']
+            isOneToOne: false
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'calendar_blocks_organization_id_fkey'
+            columns: ['organization_id']
+            isOneToOne: false
+            referencedRelation: 'organizations'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'calendar_blocks_user_id_fkey'
+            columns: ['user_id']
+            isOneToOne: false
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      work_schedules: {
+        Row: {
+          buffer_percentage: number
+          created_at: string
+          daily_capacity_minutes: number
+          end_time: string
+          focus_block_minutes: number
+          id: string
+          lunch_end: string | null
+          lunch_start: string | null
+          organization_id: string
+          start_time: string
+          updated_at: string
+          user_id: string
+          working_days: number[]
+        }
+        Insert: {
+          buffer_percentage?: number
+          created_at?: string
+          daily_capacity_minutes?: number
+          end_time?: string
+          focus_block_minutes?: number
+          id?: string
+          lunch_end?: string | null
+          lunch_start?: string | null
+          organization_id: string
+          start_time?: string
+          updated_at?: string
+          user_id: string
+          working_days?: number[]
+        }
+        Update: {
+          buffer_percentage?: number
+          created_at?: string
+          daily_capacity_minutes?: number
+          end_time?: string
+          focus_block_minutes?: number
+          id?: string
+          lunch_end?: string | null
+          lunch_start?: string | null
+          organization_id?: string
+          start_time?: string
+          updated_at?: string
+          user_id?: string
+          working_days?: number[]
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'work_schedules_organization_id_fkey'
+            columns: ['organization_id']
+            isOneToOne: false
+            referencedRelation: 'organizations'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'work_schedules_user_id_fkey'
+            columns: ['user_id']
+            isOneToOne: false
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
+          },
+        ]
+      }
       audit_log: {
         Row: {
           action: string

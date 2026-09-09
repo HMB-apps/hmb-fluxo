@@ -6,16 +6,17 @@ instalável, com banco de dados central (Supabase) e autenticação individual p
 > Nome, cores e demais itens de identidade ficam centralizados em [`src/config/branding.ts`](src/config/branding.ts)
 > para facilitar troca futura.
 
-Este README cobre as **Fases 1 e 2**: autenticação, organização HMB, convites, políticas de
-segurança (RLS), e o núcleo de gestão — clientes, projetos, categorias, tarefas com CRUD completo,
-lixeira, histórico, notificações internas e atualização em tempo real entre Michel e Helena. As
-demais fases (Meu Dia, Quadro Kanban visual, linha do tempo, planejador automático, IA) serão
-implementadas em seguida, sem remover o que já funciona aqui.
+Este README cobre as **Fases 1, 2 e 3**: autenticação, organização HMB, convites, políticas de
+segurança (RLS), o núcleo de gestão (clientes, projetos, categorias, tarefas com CRUD completo,
+lixeira, histórico, notificações internas) e as visualizações operacionais do dia a dia — Meu Dia,
+Quadro Kanban com arrastar-e-soltar, Calendário, Linha do Tempo e capacidade de agenda. As demais
+fases (planejador automático, IA) serão implementadas em seguida, sem remover o que já funciona
+aqui.
 
-> Status: Fases 1 e 2 validadas de ponta a ponta em um projeto Supabase real (`hmb-fluxo`, região
-> `sa-east-1`), incluindo criação da organização, convite/aceite por Michel e Helena, criação de
-> cliente, criação de tarefa com atribuição, notificação automática, edição com controle de
-> concorrência e histórico de auditoria.
+> Status: Fases 1, 2 e 3 validadas em um projeto Supabase real (`hmb-fluxo`, região `sa-east-1`),
+> incluindo organização, convite/aceite por Michel e Helena, CRUD de clientes/tarefas, notificação
+> automática, edição com controle de concorrência, histórico de auditoria, cálculo de capacidade
+> diária e as telas Meu Dia, Equipe, Calendário e Linha do Tempo com dados reais.
 
 ---
 
@@ -72,6 +73,9 @@ O que cada migration faz:
 | `0014_task_triggers.sql` | Autor/editor automáticos, concorrência otimista (`row_version`), datas de conclusão/cancelamento, histórico e notificação de atribuição |
 | `0015_realtime_fase2.sql` | Habilita Realtime em clientes, projetos, categorias, tarefas e notificações |
 | `0016_security_hardening_fase2.sql` | Corrige avisos de segurança das novas funções |
+| `0017_work_schedules_and_calendar_blocks.sql` | Tabelas `work_schedules` (horário/capacidade por pessoa) e `calendar_blocks` (feriados, ausências, reuniões) |
+| `0018_rls_fase3.sql` | RLS de horário de trabalho (só o próprio dono edita) e bloqueios de agenda |
+| `0019_realtime_fase3.sql` | Habilita Realtime em `work_schedules` e `calendar_blocks` |
 
 ### 3.3 Variáveis de ambiente
 
@@ -142,6 +146,30 @@ Com a organização criada, o app já opera de verdade:
   aviso de conflito em vez de sobrescrever silenciosamente a mudança do outro.
 - **Tempo real**: mudanças em clientes, projetos, categorias, tarefas e notificações aparecem para
   o outro usuário sem recarregar a página.
+
+## 5.2 Visualizações operacionais (Fase 3)
+
+- **Meu Dia** (`/meu-dia`, tela inicial): saudação, capacidade disponível hoje, carga programada
+  e percentual de ocupação (com alerta de sobrecarga), tarefas atrasadas, tarefas de hoje com
+  ações rápidas (iniciar/pausar/concluir), entregas ao cliente do dia, itens aguardando ação, e
+  um seletor para ver o dia de Michel ou de Helena.
+- **Quadro** (`/quadro`): agora é um Kanban de verdade — colunas por status, cartões arrastáveis
+  entre colunas (arrastar muda o status), opção de ocultar colunas vazias, indicadores de atraso,
+  cliente e bloqueio de agenda no cartão. Tarefas travadas (`schedule_locked`) não podem ser
+  arrastadas.
+- **Equipe** (`/equipe`): uma raia por pessoa (+ "Sem responsável") com as tarefas ativas de cada
+  um e a capacidade do dia; arrastar um cartão para outra raia reatribui a tarefa, com aviso se
+  isso sobrecarregar a agenda de quem vai receber.
+- **Calendário** (`/calendario`): visão mensal com as tarefas no dia do prazo ao cliente ou do
+  início planejado.
+- **Linha do Tempo** (`/linha-do-tempo`): visão semanal com uma raia por pessoa; arrastar um bloco
+  para outro dia ou pessoa reagenda o início/fim planejado sem alterar o prazo de entrega ao
+  cliente (regra #7 do briefing).
+- **Horário de trabalho** (Configurações → Meu horário de trabalho): cada pessoa configura os
+  próprios dias úteis, horário de expediente, almoço, margem para imprevistos e duração padrão de
+  bloco de foco — usado no cálculo de capacidade em Meu Dia e Equipe.
+- **Cálculo de capacidade**: isolado e testável em `src/domain/capacity.ts` — desconta almoço,
+  bloqueios de agenda (feriados/ausências/reuniões) e aplica a margem de imprevistos configurada.
 
 ## 6. Testes
 
@@ -214,16 +242,19 @@ src/
     layout/       Sidebar, Header, sino de notificações
     clients/      formulário de cliente
     projects/     formulário de projeto
-    tasks/        formulário completo de tarefa
+    tasks/        formulário completo de tarefa, cartão e coluna do Kanban
+    settings/     configuração de horário de trabalho
     common/       Modal genérico e outros componentes reutilizáveis
   config/         identidade visual, config regional e navegação — nenhum outro
                   arquivo deve hardcodar nome do produto, cores ou timezone
   data/
     supabase/     cliente Supabase, tipos gerados do banco, mapeadores row → domínio
     repositories/ acesso a dados por entidade (única camada que fala com o Supabase)
-  domain/         tipos de negócio, independentes do formato das tabelas
-  hooks/          useOrgData (clientes/projetos/categorias/tarefas/membros com Realtime
-                  embutido) e useRealtimeTable (assinatura genérica por tabela)
+  domain/         tipos e regras de negócio puros, independentes do formato das tabelas —
+                  inclui capacity.ts (cálculo de capacidade/carga, testado sem banco)
+  hooks/          useOrgData (clientes/projetos/categorias/tarefas/membros/horários/
+                  bloqueios com Realtime embutido) e useRealtimeTable (assinatura
+                  genérica por tabela)
   pages/          telas roteadas
   planner/        (Fase 4) motor de planejamento de agenda
   ai/             (Fase 5) integração com IA via interface AIProvider
@@ -245,31 +276,36 @@ componentes React — apenas o inverso. Isso mantém a lógica testável sem pre
 - A chave usada no frontend é sempre a `anon public key`. A `service_role` nunca deve ser exposta
   no navegador nem commitada.
 
-## Limitações conhecidas (Fases 1 e 2)
+## Limitações conhecidas (Fases 1, 2 e 3)
 
 - Convites são compartilhados manualmente por link — não há envio automático de e-mail (exigiria
   configurar um serviço de e-mail transacional; decisão adiada por não ser bloqueadora).
 - Não há tela de criação de usuário dentro do app para o primeiro administrador; ele é criado pelo
   painel do Supabase (decisão intencional: evita expor cadastro público, conforme a seção 12.4 do
   briefing).
-- Meu Dia, Equipe, Caixa de Entrada, Linha do Tempo e Calendário ainda são placeholders de
-  navegação — chegam nas Fases 3 e 5.
-- `/quadro` já lista e edita tarefas de verdade, mas ainda como tabela filtrável, não como
-  quadro Kanban arrastável — o drag-and-drop entre colunas é Fase 3.
+- Caixa de Entrada ainda é um placeholder de navegação — a interpretação por IA chega na Fase 5.
 - Categorias podem ser criadas/desativadas em Configurações, mas a reordenação visual (arrastar
   para cima/baixo) ainda não tem interface própria — dá para ajustar via banco se necessário.
-- Dependências entre tarefas, recorrências, anexos, lembretes e divisão em blocos de foco (seções
-  16.4, 19, 20, 21 do briefing) ainda não existem — chegam nas Fases 4 e 6.
+- Dependências entre tarefas, priorização automática, recorrências, anexos, lembretes e divisão em
+  blocos de foco (seções 16.2, 16.4, 17, 19, 20, 21 do briefing) ainda não existem — chegam nas
+  Fases 4 e 6. O planejador automático com prévia/desfazer também é Fase 4: por enquanto, mover uma
+  tarefa no Quadro, na Equipe ou na Linha do Tempo aplica a mudança na hora.
+- "Tarefas criadas por outra pessoa e ainda não visualizadas" (seção 14) não tem rastreamento
+  próprio ainda — hoje isso é coberto pela notificação de atribuição.
+- Reordenação manual das tarefas dentro de "Hoje" em Meu Dia ainda não existe (a lista é ordenada
+  pelo horário planejado).
 - Salvamento do formulário de tarefa é explícito (botão Salvar) com indicação de
   salvando/erro/conflito, não autosave campo a campo.
 - Exportação administrativa e backup automatizado pelo app ainda não existem (Fase 6); usar os
   recursos nativos do Supabase enquanto isso.
+- Interações de arrastar-e-soltar (Quadro, Equipe, Linha do Tempo) usam `@dnd-kit` com sensor de
+  ponteiro padrão — funcionam normalmente com mouse/touch reais; alguns ambientes de automação de
+  navegador têm dificuldade em simular o gesto de arrastar.
 
 ## Próximas fases
 
 Ver o histórico de commits e o briefing original para o detalhamento completo. Resumo:
 
-- **Fase 3** — Meu Dia, Quadro Kanban visual (drag-and-drop), Calendário, Linha do Tempo manual, capacidade.
 - **Fase 4** — prioridade sugerida, dependências, planejador automático com prévia/desfazer.
 - **Fase 5** — Caixa de Entrada Inteligente com IA (Anthropic), validação por schema.
 - **Fase 6** — recorrências, notificações, modelos de trabalho, exportação e backup administrativos.
