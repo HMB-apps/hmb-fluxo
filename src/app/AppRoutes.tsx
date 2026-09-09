@@ -6,6 +6,12 @@ import { CreateOrganizationPage } from '../pages/CreateOrganizationPage'
 import { AcceptInvitationPage } from '../pages/AcceptInvitationPage'
 import { PlaceholderPage } from '../pages/PlaceholderPage'
 import { SettingsPage } from '../pages/SettingsPage'
+import { ClientsPage } from '../pages/ClientsPage'
+import { ClientDetailPage } from '../pages/ClientDetailPage'
+import { ProjectsPage } from '../pages/ProjectsPage'
+import { BoardPage } from '../pages/BoardPage'
+import { CompletedPage } from '../pages/CompletedPage'
+import { TrashPage } from '../pages/TrashPage'
 import { getPendingInvitationToken } from '../auth/pendingInvitation'
 
 export function AppRoutes() {
@@ -52,13 +58,14 @@ export function AppRoutes() {
           <Route path="/equipe" element={<PlaceholderPage title="Equipe" phase="Fase 3" />} />
           <Route path="/caixa-de-entrada" element={<PlaceholderPage title="Caixa de entrada" phase="Fase 5" />} />
           <Route path="/linha-do-tempo" element={<PlaceholderPage title="Linha do tempo" phase="Fase 3/4" />} />
-          <Route path="/quadro" element={<PlaceholderPage title="Quadro" phase="Fase 3" />} />
+          <Route path="/quadro" element={<BoardPage />} />
           <Route path="/calendario" element={<PlaceholderPage title="Calendário" phase="Fase 3" />} />
-          <Route path="/clientes" element={<PlaceholderPage title="Clientes" phase="Fase 2" />} />
-          <Route path="/projetos" element={<PlaceholderPage title="Projetos" phase="Fase 2" />} />
+          <Route path="/clientes" element={<ClientsPage />} />
+          <Route path="/clientes/:id" element={<ClientDetailPage />} />
+          <Route path="/projetos" element={<ProjectsPage />} />
           <Route path="/recorrencias" element={<PlaceholderPage title="Recorrências" phase="Fase 6" />} />
-          <Route path="/concluidos" element={<PlaceholderPage title="Concluídos" phase="Fase 2" />} />
-          <Route path="/lixeira" element={<PlaceholderPage title="Lixeira" phase="Fase 2" />} />
+          <Route path="/concluidos" element={<CompletedPage />} />
+          <Route path="/lixeira" element={<TrashPage />} />
           <Route path="/configuracoes" element={<SettingsPage />} />
           <Route path="*" element={<Navigate to="/meu-dia" replace />} />
         </Route>

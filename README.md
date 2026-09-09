@@ -6,13 +6,16 @@ instalável, com banco de dados central (Supabase) e autenticação individual p
 > Nome, cores e demais itens de identidade ficam centralizados em [`src/config/branding.ts`](src/config/branding.ts)
 > para facilitar troca futura.
 
-Este README cobre a **Fase 1 — Fundação web compartilhada**: autenticação, organização HMB,
-convites, políticas de segurança (RLS) e o esqueleto de navegação. As demais fases (tarefas,
-quadro, linha do tempo, planejador, IA etc.) serão implementadas em seguida, sem remover o que
-já funciona aqui.
+Este README cobre as **Fases 1 e 2**: autenticação, organização HMB, convites, políticas de
+segurança (RLS), e o núcleo de gestão — clientes, projetos, categorias, tarefas com CRUD completo,
+lixeira, histórico, notificações internas e atualização em tempo real entre Michel e Helena. As
+demais fases (Meu Dia, Quadro Kanban visual, linha do tempo, planejador automático, IA) serão
+implementadas em seguida, sem remover o que já funciona aqui.
 
-> Status: Fase 1 validada de ponta a ponta em um projeto Supabase real (`hmb-fluxo`, região
-> `sa-east-1`), incluindo criação da organização, convite e aceite por Michel e Helena.
+> Status: Fases 1 e 2 validadas de ponta a ponta em um projeto Supabase real (`hmb-fluxo`, região
+> `sa-east-1`), incluindo criação da organização, convite/aceite por Michel e Helena, criação de
+> cliente, criação de tarefa com atribuição, notificação automática, edição com controle de
+> concorrência e histórico de auditoria.
 
 ---
 
@@ -61,6 +64,14 @@ O que cada migration faz:
 | `0006_invitation_preview.sql` | Função pública para pré-visualizar um convite pelo token, antes do login |
 | `0007_security_hardening.sql` | Corrige avisos do linter de segurança (search_path, permissões de funções) |
 | `0008_revoke_anon_helper_functions.sql` | Remove acesso de `anon` às funções internas de apoio ao RLS |
+| `0009_clients_projects_categories.sql` | Tabelas `clients`, `projects`, `categories` |
+| `0010_seed_default_categories_on_bootstrap.sql` | Semeia as categorias sugeridas (seção 12.3) ao criar o espaço de trabalho |
+| `0011_tasks.sql` | Tabela `tasks` (com subtarefas via `parent_task_id`), `tags`, `task_tags` |
+| `0012_notifications_audit_log.sql` | Tabelas `notifications` e `audit_log` |
+| `0013_rls_fase2.sql` | RLS de clientes, projetos, categorias, tarefas, tags e histórico |
+| `0014_task_triggers.sql` | Autor/editor automáticos, concorrência otimista (`row_version`), datas de conclusão/cancelamento, histórico e notificação de atribuição |
+| `0015_realtime_fase2.sql` | Habilita Realtime em clientes, projetos, categorias, tarefas e notificações |
+| `0016_security_hardening_fase2.sql` | Corrige avisos de segurança das novas funções |
 
 ### 3.3 Variáveis de ambiente
 
@@ -105,6 +116,32 @@ Abra `http://localhost:5173`.
    clicar no link recebido, volta autenticada e o app retoma sozinho o aceite do convite pendente
    (usa `localStorage` para lembrar qual convite ela estava aceitando). Se a confirmação estiver
    desativada, o aceite acontece na hora, sem passo extra.
+
+## 5.1 Núcleo de gestão (Fase 2)
+
+Com a organização criada, o app já opera de verdade:
+
+- **Clientes** (`/clientes`): cadastro, edição, página de detalhe com demandas abertas e
+  concluídas, envio à lixeira.
+- **Projetos** (`/projetos`): vinculados a um cliente ou internos à HMB, com status
+  ativo/pausado/encerrado.
+- **Categorias**: gerenciadas em Configurações — a organização já nasce com as 15 categorias
+  sugeridas na seção 12.3 do briefing, editáveis e desativáveis.
+- **Tarefas** (`/quadro`, por enquanto uma lista filtrável — o Kanban visual chega na Fase 3):
+  CRUD completo, subtarefas (`parent_task_id`), tags, responsável, prioridade manual, prazos,
+  status, estimativas, e uma tarefa pode existir sem cliente/projeto/prazo (regra #3 do briefing).
+- **Concluídos** (`/concluidos`) e **Lixeira** (`/lixeira`): lixeira reúne clientes, projetos e
+  tarefas enviados para exclusão, com restaurar e excluir definitivamente (só permitido sobre um
+  registro já na lixeira — nunca uma exclusão direta).
+- **Notificações internas**: sino no cabeçalho, com contagem de não lidas; ao atribuir uma tarefa
+  a alguém, essa pessoa recebe uma notificação automaticamente (regra #18).
+- **Histórico**: toda criação, mudança de status, reatribuição, reagendamento e edição de
+  conteúdo relevante de uma tarefa fica registrada em `audit_log`, com autor e data.
+- **Edição concorrente segura** (cenário 6 do briefing): cada tarefa carrega um `row_version`;
+  se Michel e Helena editarem a mesma tarefa ao mesmo tempo, quem salvar por último recebe um
+  aviso de conflito em vez de sobrescrever silenciosamente a mudança do outro.
+- **Tempo real**: mudanças em clientes, projetos, categorias, tarefas e notificações aparecem para
+  o outro usuário sem recarregar a página.
 
 ## 6. Testes
 
@@ -173,18 +210,23 @@ existentes. Novas migrations devem ser aplicadas antes de publicar uma versão q
 src/
   app/            bootstrap do roteamento e do gate de configuração
   auth/           contexto de autenticação (sessão, perfil, organização ativa)
-  components/     componentes visuais reutilizáveis (layout, etc.)
+  components/
+    layout/       Sidebar, Header, sino de notificações
+    clients/      formulário de cliente
+    projects/     formulário de projeto
+    tasks/        formulário completo de tarefa
+    common/       Modal genérico e outros componentes reutilizáveis
   config/         identidade visual, config regional e navegação — nenhum outro
                   arquivo deve hardcodar nome do produto, cores ou timezone
   data/
     supabase/     cliente Supabase, tipos gerados do banco, mapeadores row → domínio
     repositories/ acesso a dados por entidade (única camada que fala com o Supabase)
   domain/         tipos de negócio, independentes do formato das tabelas
+  hooks/          useOrgData (clientes/projetos/categorias/tarefas/membros com Realtime
+                  embutido) e useRealtimeTable (assinatura genérica por tabela)
   pages/          telas roteadas
   planner/        (Fase 4) motor de planejamento de agenda
   ai/             (Fase 5) integração com IA via interface AIProvider
-  notifications/  (Fase 6) notificações internas e push
-  realtime/       (fases seguintes) assinaturas Realtime compartilhadas
 supabase/
   migrations/     migrations SQL versionadas, numeradas e aditivas
 e2e/              testes Playwright
@@ -203,15 +245,23 @@ componentes React — apenas o inverso. Isso mantém a lógica testável sem pre
 - A chave usada no frontend é sempre a `anon public key`. A `service_role` nunca deve ser exposta
   no navegador nem commitada.
 
-## Limitações conhecidas (Fase 1)
+## Limitações conhecidas (Fases 1 e 2)
 
 - Convites são compartilhados manualmente por link — não há envio automático de e-mail (exigiria
   configurar um serviço de e-mail transacional; decisão adiada por não ser bloqueadora).
 - Não há tela de criação de usuário dentro do app para o primeiro administrador; ele é criado pelo
   painel do Supabase (decisão intencional: evita expor cadastro público, conforme a seção 12.4 do
   briefing).
-- Meu Dia, Quadro, Linha do Tempo, Clientes, Projetos, Caixa de Entrada etc. são apenas placeholders
-  de navegação nesta fase — a lógica de negócio chega nas Fases 2 a 6.
+- Meu Dia, Equipe, Caixa de Entrada, Linha do Tempo e Calendário ainda são placeholders de
+  navegação — chegam nas Fases 3 e 5.
+- `/quadro` já lista e edita tarefas de verdade, mas ainda como tabela filtrável, não como
+  quadro Kanban arrastável — o drag-and-drop entre colunas é Fase 3.
+- Categorias podem ser criadas/desativadas em Configurações, mas a reordenação visual (arrastar
+  para cima/baixo) ainda não tem interface própria — dá para ajustar via banco se necessário.
+- Dependências entre tarefas, recorrências, anexos, lembretes e divisão em blocos de foco (seções
+  16.4, 19, 20, 21 do briefing) ainda não existem — chegam nas Fases 4 e 6.
+- Salvamento do formulário de tarefa é explícito (botão Salvar) com indicação de
+  salvando/erro/conflito, não autosave campo a campo.
 - Exportação administrativa e backup automatizado pelo app ainda não existem (Fase 6); usar os
   recursos nativos do Supabase enquanto isso.
 
@@ -219,8 +269,7 @@ componentes React — apenas o inverso. Isso mantém a lógica testável sem pre
 
 Ver o histórico de commits e o briefing original para o detalhamento completo. Resumo:
 
-- **Fase 2** — clientes, projetos, categorias, tarefas, CRUD completo, lixeira, histórico.
-- **Fase 3** — Meu Dia, Quadro Kanban, Calendário, Linha do Tempo manual, capacidade.
+- **Fase 3** — Meu Dia, Quadro Kanban visual (drag-and-drop), Calendário, Linha do Tempo manual, capacidade.
 - **Fase 4** — prioridade sugerida, dependências, planejador automático com prévia/desfazer.
 - **Fase 5** — Caixa de Entrada Inteligente com IA (Anthropic), validação por schema.
 - **Fase 6** — recorrências, notificações, modelos de trabalho, exportação e backup administrativos.

@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { useAuth } from '../auth/AuthProvider'
-import { supabase } from '../data/supabase/client'
 import {
   listOrganizationMembers,
   updateMemberStatus,
@@ -12,9 +11,15 @@ import {
 } from '../data/repositories/invitationRepository'
 import type { Invitation, MemberWithProfile } from '../domain/types'
 import { branding } from '../config/branding'
+import { useCategories } from '../hooks/useOrgData'
+import { useRealtimeTable } from '../hooks/useRealtimeTable'
+import { createCategory, updateCategory } from '../data/repositories/categoryRepository'
 
 export function SettingsPage() {
   const { profile, organization, user } = useAuth()
+  const { items: categories, reload: reloadCategories } = useCategories()
+  const [newCategoryName, setNewCategoryName] = useState('')
+  const [creatingCategory, setCreatingCategory] = useState(false)
   const [members, setMembers] = useState<MemberWithProfile[]>([])
   const [invitations, setInvitations] = useState<Invitation[]>([])
   const [loading, setLoading] = useState(true)
@@ -52,20 +57,7 @@ export function SettingsPage() {
     void load()
   }, [load])
 
-  useEffect(() => {
-    if (!organizationId) return
-    const channel = supabase
-      .channel(`org-members-${organizationId}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'organization_members', filter: `organization_id=eq.${organizationId}` },
-        () => void load(),
-      )
-      .subscribe()
-    return () => {
-      void supabase.removeChannel(channel)
-    }
-  }, [organizationId, load])
+  useRealtimeTable('organization_members', organizationId, load)
 
   async function handleInvite(event: FormEvent) {
     event.preventDefault()
@@ -120,6 +112,24 @@ export function SettingsPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Não foi possível revogar o convite.')
     }
+  }
+
+  async function handleCreateCategory(event: FormEvent) {
+    event.preventDefault()
+    if (!organization || !newCategoryName.trim()) return
+    setCreatingCategory(true)
+    try {
+      await createCategory(organization.id, { name: newCategoryName.trim(), sortOrder: categories.length })
+      setNewCategoryName('')
+      reloadCategories()
+    } finally {
+      setCreatingCategory(false)
+    }
+  }
+
+  async function handleToggleCategory(id: string, active: boolean) {
+    await updateCategory(id, { active: !active })
+    reloadCategories()
   }
 
   return (
@@ -212,6 +222,44 @@ export function SettingsPage() {
             )}
           </>
         )}
+      </section>
+
+      <section className="settings-section">
+        <h2>Categorias</h2>
+        <ul className="invitation-list">
+          {categories.map((category) => (
+            <li key={category.id} className="invitation-item">
+              <div className="invitation-item-row">
+                <span>
+                  <span
+                    style={{
+                      display: 'inline-block',
+                      width: 10,
+                      height: 10,
+                      borderRadius: '50%',
+                      background: category.color ?? '#94a3b8',
+                      marginRight: 8,
+                    }}
+                  />
+                  {category.name}
+                </span>
+                <button type="button" className="link-button" onClick={() => void handleToggleCategory(category.id, category.active)}>
+                  {category.active ? 'Desativar' : 'Reativar'}
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+        <form onSubmit={handleCreateCategory} className="inline-form">
+          <input
+            placeholder="Nova categoria"
+            value={newCategoryName}
+            onChange={(event) => setNewCategoryName(event.target.value)}
+          />
+          <button type="submit" disabled={creatingCategory}>
+            Adicionar
+          </button>
+        </form>
       </section>
     </div>
   )

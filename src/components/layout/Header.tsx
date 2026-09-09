@@ -1,4 +1,5 @@
 import { useAuth } from '../../auth/AuthProvider'
+import { NotificationBell } from './NotificationBell'
 
 export function Header() {
   const { profile, organization, signOut } = useAuth()
@@ -7,6 +8,7 @@ export function Header() {
     <header className="app-header">
       <div className="app-header-org">{organization?.name}</div>
       <div className="app-header-user">
+        <NotificationBell />
         <span className="user-badge" style={{ backgroundColor: profile?.color ?? '#64748b' }}>
           {(profile?.name ?? '?').slice(0, 1).toUpperCase()}
         </span>

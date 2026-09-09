@@ -1,12 +1,16 @@
+import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import { navItems } from '../../config/navigation'
 import { branding } from '../../config/branding'
+import { TaskFormModal } from '../tasks/TaskFormModal'
 
 export function Sidebar() {
+  const [creatingTask, setCreatingTask] = useState(false)
+
   return (
     <aside className="sidebar">
       <div className="sidebar-brand">{branding.productName}</div>
-      <button type="button" className="quick-capture-button" onClick={() => alert('Captura rápida chega na Fase 5')}>
+      <button type="button" className="quick-capture-button" onClick={() => setCreatingTask(true)}>
         + Adicionar demanda
       </button>
       <nav className="sidebar-nav">
@@ -23,6 +27,10 @@ export function Sidebar() {
           </NavLink>
         ))}
       </nav>
+
+      {creatingTask && (
+        <TaskFormModal task={null} onClose={() => setCreatingTask(false)} onSaved={() => setCreatingTask(false)} />
+      )}
     </aside>
   )
 }
