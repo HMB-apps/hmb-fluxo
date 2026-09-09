@@ -11,6 +11,9 @@ convites, políticas de segurança (RLS) e o esqueleto de navegação. As demais
 quadro, linha do tempo, planejador, IA etc.) serão implementadas em seguida, sem remover o que
 já funciona aqui.
 
+> Status: Fase 1 validada de ponta a ponta em um projeto Supabase real (`hmb-fluxo`, região
+> `sa-east-1`), incluindo criação da organização, convite e aceite por Michel e Helena.
+
 ---
 
 ## 1. Requisitos de desenvolvimento
@@ -56,6 +59,8 @@ O que cada migration faz:
 | `0004_bootstrap_and_invitations_rpc.sql` | Funções `claim_first_organization` e `accept_invitation` |
 | `0005_realtime.sql` | Habilita Realtime nas tabelas de membros/perfis |
 | `0006_invitation_preview.sql` | Função pública para pré-visualizar um convite pelo token, antes do login |
+| `0007_security_hardening.sql` | Corrige avisos do linter de segurança (search_path, permissões de funções) |
+| `0008_revoke_anon_helper_functions.sql` | Remove acesso de `anon` às funções internas de apoio ao RLS |
 
 ### 3.3 Variáveis de ambiente
 
@@ -92,9 +97,14 @@ Abra `http://localhost:5173`.
    trabalho"**. Confirme o nome (padrão: "HMB Negócios Digitais"). Isso cria a organização e torna
    esse usuário administrador.
 4. Em **Configurações → Equipe**, use **Convidar novo integrante** para gerar um link de convite
-   para Helena. O app mostra o link (`/convite/<token>`) para você copiar e enviar por e-mail ou
-   WhatsApp — o envio automático de e-mail fica para uma fase futura (ver "Limitações conhecidas").
-5. Helena abre o link, cria sua senha e entra automaticamente na organização da HMB.
+   para Helena. O app mostra o link (`/convite/<token>`) na própria tela, com botão **Copiar
+   link**, para você enviar por e-mail ou WhatsApp — o envio automático desse link específico fica
+   para uma fase futura (ver "Limitações conhecidas").
+5. Helena abre o link, informa nome e senha. Se a confirmação de e-mail estiver ativada no projeto
+   (padrão do Supabase), ela recebe um e-mail de confirmação automático do próprio Supabase; ao
+   clicar no link recebido, volta autenticada e o app retoma sozinho o aceite do convite pendente
+   (usa `localStorage` para lembrar qual convite ela estava aceitando). Se a confirmação estiver
+   desativada, o aceite acontece na hora, sem passo extra.
 
 ## 6. Testes
 

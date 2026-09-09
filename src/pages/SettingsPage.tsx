@@ -22,17 +22,22 @@ export function SettingsPage() {
 
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviting, setInviting] = useState(false)
+  const [copiedInvitationId, setCopiedInvitationId] = useState<string | null>(null)
 
   const isAdmin = members.some((m) => m.userId === user?.id && m.role === 'admin')
+  const organizationId = organization?.id
 
+  // Depende só do id (primitivo estável), não do objeto `organization` —
+  // este é recriado a cada carga de dados do AuthProvider, o que fazia o
+  // efeito abaixo reexecutar em loop e a tela travar em "Carregando…".
   const load = useCallback(async () => {
-    if (!organization) return
+    if (!organizationId) return
     setLoading(true)
     setError(null)
     try {
       const [memberList, invitationList] = await Promise.all([
-        listOrganizationMembers(organization.id),
-        listPendingInvitations(organization.id),
+        listOrganizationMembers(organizationId),
+        listPendingInvitations(organizationId),
       ])
       setMembers(memberList)
       setInvitations(invitationList.filter((i) => i.status === 'pending'))
@@ -41,26 +46,26 @@ export function SettingsPage() {
     } finally {
       setLoading(false)
     }
-  }, [organization])
+  }, [organizationId])
 
   useEffect(() => {
     void load()
   }, [load])
 
   useEffect(() => {
-    if (!organization) return
+    if (!organizationId) return
     const channel = supabase
-      .channel(`org-members-${organization.id}`)
+      .channel(`org-members-${organizationId}`)
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'organization_members', filter: `organization_id=eq.${organization.id}` },
+        { event: '*', schema: 'public', table: 'organization_members', filter: `organization_id=eq.${organizationId}` },
         () => void load(),
       )
       .subscribe()
     return () => {
       void supabase.removeChannel(channel)
     }
-  }, [organization, load])
+  }, [organizationId, load])
 
   async function handleInvite(event: FormEvent) {
     event.preventDefault()
@@ -68,7 +73,7 @@ export function SettingsPage() {
     setInviting(true)
     setError(null)
     try {
-      const invitation = await createInvitation({
+      await createInvitation({
         organizationId: organization.id,
         email: inviteEmail,
         role: 'member',
@@ -76,12 +81,25 @@ export function SettingsPage() {
       })
       setInviteEmail('')
       await load()
-      const link = `${window.location.origin}/convite/${invitation.token}`
-      window.prompt('Envie este link de convite para o novo integrante:', link)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Não foi possível criar o convite.')
     } finally {
       setInviting(false)
+    }
+  }
+
+  function invitationLink(token: string): string {
+    return `${window.location.origin}/convite/${token}`
+  }
+
+  async function handleCopyLink(invitation: Invitation) {
+    const link = invitationLink(invitation.token)
+    try {
+      await navigator.clipboard.writeText(link)
+      setCopiedInvitationId(invitation.id)
+      setTimeout(() => setCopiedInvitationId((current) => (current === invitation.id ? null : current)), 2000)
+    } catch {
+      setError('Não foi possível copiar automaticamente. Selecione e copie o link manualmente.')
     }
   }
 
@@ -174,11 +192,19 @@ export function SettingsPage() {
                 <h3>Convites pendentes</h3>
                 <ul className="invitation-list">
                   {invitations.map((invitation) => (
-                    <li key={invitation.id}>
-                      {invitation.email}
-                      <button type="button" className="link-button" onClick={() => void handleRevoke(invitation.id)}>
-                        Revogar
-                      </button>
+                    <li key={invitation.id} className="invitation-item">
+                      <div className="invitation-item-row">
+                        <span>{invitation.email}</span>
+                        <button type="button" className="link-button" onClick={() => void handleRevoke(invitation.id)}>
+                          Revogar
+                        </button>
+                      </div>
+                      <div className="invitation-item-row">
+                        <input readOnly value={invitationLink(invitation.token)} onFocus={(e) => e.target.select()} />
+                        <button type="button" className="link-button" onClick={() => void handleCopyLink(invitation)}>
+                          {copiedInvitationId === invitation.id ? 'Copiado!' : 'Copiar link'}
+                        </button>
+                      </div>
                     </li>
                   ))}
                 </ul>

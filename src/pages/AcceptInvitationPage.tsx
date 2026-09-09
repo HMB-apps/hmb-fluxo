@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../auth/AuthProvider'
 import { supabase } from '../data/supabase/client'
+import { clearPendingInvitationToken, setPendingInvitationToken } from '../auth/pendingInvitation'
 import { acceptInvitation, getInvitationPreview, type InvitationPreview } from '../data/repositories/invitationRepository'
 import { branding } from '../config/branding'
 
@@ -18,9 +19,11 @@ export function AcceptInvitationPage() {
   const [password, setPassword] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
+  const [awaitingEmailConfirmation, setAwaitingEmailConfirmation] = useState(false)
 
   useEffect(() => {
     if (!token) return
+    setPendingInvitationToken(token)
     getInvitationPreview(token)
       .then((result) => {
         if (!result) {
@@ -41,6 +44,7 @@ export function AcceptInvitationPage() {
     setActionError(null)
     try {
       await acceptInvitation(token)
+      clearPendingInvitationToken()
       await refresh()
       navigate('/', { replace: true })
     } catch (err) {
@@ -55,7 +59,7 @@ export function AcceptInvitationPage() {
     if (!preview) return
     setSubmitting(true)
     setActionError(null)
-    const { error: signUpError } = await supabase.auth.signUp({
+    const { data, error: signUpError } = await supabase.auth.signUp({
       email: preview.email,
       password,
       options: { data: { name } },
@@ -67,6 +71,15 @@ export function AcceptInvitationPage() {
           : 'Não foi possível criar sua conta. Tente novamente.',
       )
       setSubmitting(false)
+      return
+    }
+    setSubmitting(false)
+    if (!data.session) {
+      // Confirmação de e-mail está habilitada no projeto: a conta foi criada,
+      // mas ainda não há sessão para aceitar o convite. O token já ficou
+      // salvo (setPendingInvitationToken) para retomar automaticamente
+      // assim que a pessoa confirmar o e-mail e voltar autenticada.
+      setAwaitingEmailConfirmation(true)
       return
     }
     await finishAccepting()
@@ -86,6 +99,24 @@ export function AcceptInvitationPage() {
   }
 
   if (!preview) return null
+
+  if (awaitingEmailConfirmation) {
+    return (
+      <div className="auth-screen">
+        <div className="auth-card">
+          <h1>Confirme seu e-mail</h1>
+          <p className="auth-subtitle">
+            Sua conta foi criada. Enviamos um e-mail de confirmação para <strong>{preview.email}</strong>. Abra-o e
+            clique no link de confirmação — você voltará automaticamente para o {branding.productName} já conectado
+            e com o convite aceito.
+          </p>
+          <button type="button" onClick={() => window.location.reload()}>
+            Já confirmei, continuar
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   const loggedInWithWrongEmail = user && user.email?.toLowerCase() !== preview.email.toLowerCase()
 

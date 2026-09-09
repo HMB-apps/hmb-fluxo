@@ -1,4 +1,4 @@
-import type { Database } from './database.types'
+import type { Database, InvitationStatus, MemberRole, MemberStatus } from './database.types'
 import type { Invitation, MemberWithProfile, Organization, OrganizationMember, Profile } from '../../domain/types'
 
 type OrganizationRow = Database['public']['Tables']['organizations']['Row']
@@ -34,8 +34,8 @@ export function mapMember(row: MemberRow): OrganizationMember {
     id: row.id,
     organizationId: row.organization_id,
     userId: row.user_id,
-    role: row.role,
-    status: row.status,
+    role: row.role as MemberRole,
+    status: row.status as MemberStatus,
     invitedBy: row.invited_by,
     invitedAt: row.invited_at,
     joinedAt: row.joined_at,
@@ -54,8 +54,8 @@ export function mapInvitation(row: InvitationRow): Invitation {
     id: row.id,
     organizationId: row.organization_id,
     email: row.email,
-    role: row.role,
-    status: row.status,
+    role: row.role as MemberRole,
+    status: row.status as InvitationStatus,
     invitedBy: row.invited_by,
     token: row.token,
     createdAt: row.created_at,

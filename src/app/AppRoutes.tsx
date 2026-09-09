@@ -6,6 +6,7 @@ import { CreateOrganizationPage } from '../pages/CreateOrganizationPage'
 import { AcceptInvitationPage } from '../pages/AcceptInvitationPage'
 import { PlaceholderPage } from '../pages/PlaceholderPage'
 import { SettingsPage } from '../pages/SettingsPage'
+import { getPendingInvitationToken } from '../auth/pendingInvitation'
 
 export function AppRoutes() {
   const { loading, user, needsOrganization } = useAuth()
@@ -18,6 +19,11 @@ export function AppRoutes() {
     )
   }
 
+  // Alguém que confirmou o e-mail por um link de convite volta autenticado,
+  // mas ainda sem organização — sem isso, cairia na tela de "criar espaço de
+  // trabalho" em vez de retomar o aceite do convite pendente.
+  const pendingInvitationToken = user && needsOrganization ? getPendingInvitationToken() : null
+
   return (
     <Routes>
       <Route path="/convite/:token" element={<AcceptInvitationPage />} />
@@ -29,7 +35,11 @@ export function AppRoutes() {
         </>
       )}
 
-      {user && needsOrganization && (
+      {user && needsOrganization && pendingInvitationToken && (
+        <Route path="*" element={<Navigate to={`/convite/${pendingInvitationToken}`} replace />} />
+      )}
+
+      {user && needsOrganization && !pendingInvitationToken && (
         <>
           <Route path="*" element={<CreateOrganizationPage />} />
         </>
