@@ -19,7 +19,7 @@ export function weekdayInTimeZone(iso: string, timeZone: string = appConfig.time
   return new Date(`${key}T12:00:00`).getDay()
 }
 
-function timeToMinutes(time: string): number {
+export function timeToMinutes(time: string): number {
   const [h = 0, m = 0] = time.split(':').map(Number)
   return h * 60 + m
 }

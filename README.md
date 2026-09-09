@@ -6,17 +6,20 @@ instalável, com banco de dados central (Supabase) e autenticação individual p
 > Nome, cores e demais itens de identidade ficam centralizados em [`src/config/branding.ts`](src/config/branding.ts)
 > para facilitar troca futura.
 
-Este README cobre as **Fases 1, 2 e 3**: autenticação, organização HMB, convites, políticas de
+Este README cobre as **Fases 1 a 4**: autenticação, organização HMB, convites, políticas de
 segurança (RLS), o núcleo de gestão (clientes, projetos, categorias, tarefas com CRUD completo,
-lixeira, histórico, notificações internas) e as visualizações operacionais do dia a dia — Meu Dia,
-Quadro Kanban com arrastar-e-soltar, Calendário, Linha do Tempo e capacidade de agenda. As demais
-fases (planejador automático, IA) serão implementadas em seguida, sem remover o que já funciona
-aqui.
+lixeira, histórico, notificações internas), as visualizações operacionais do dia a dia (Meu Dia,
+Quadro Kanban com arrastar-e-soltar, Calendário, Linha do Tempo, capacidade de agenda) e o
+planejamento inteligente (prioridade sugerida, dependências entre tarefas, planejador automático
+com prévia e desfazer). A fase restante (Caixa de Entrada com IA) será implementada em seguida,
+sem remover o que já funciona aqui.
 
-> Status: Fases 1, 2 e 3 validadas em um projeto Supabase real (`hmb-fluxo`, região `sa-east-1`),
+> Status: Fases 1 a 4 validadas em um projeto Supabase real (`hmb-fluxo`, região `sa-east-1`),
 > incluindo organização, convite/aceite por Michel e Helena, CRUD de clientes/tarefas, notificação
 > automática, edição com controle de concorrência, histórico de auditoria, cálculo de capacidade
-> diária e as telas Meu Dia, Equipe, Calendário e Linha do Tempo com dados reais.
+> diária, as telas Meu Dia/Equipe/Calendário/Linha do Tempo, dependências entre tarefas com
+> detecção de ciclo, e o planejador automático (prévia, aplicar parcialmente e desfazer) com dados
+> reais.
 
 ---
 
@@ -76,6 +79,10 @@ O que cada migration faz:
 | `0017_work_schedules_and_calendar_blocks.sql` | Tabelas `work_schedules` (horário/capacidade por pessoa) e `calendar_blocks` (feriados, ausências, reuniões) |
 | `0018_rls_fase3.sql` | RLS de horário de trabalho (só o próprio dono edita) e bloqueios de agenda |
 | `0019_realtime_fase3.sql` | Habilita Realtime em `work_schedules` e `calendar_blocks` |
+| `0020_task_dependencies.sql` | Tabela `task_dependencies` com trigger que rejeita ciclos |
+| `0021_planner_runs.sql` | Tabela `planner_runs` (histórico do planejador, para desfazer) |
+| `0022_rls_fase4.sql` | RLS de dependências e execuções do planejador |
+| `0023_realtime_fase4.sql` | Habilita Realtime em `task_dependencies` e `planner_runs` |
 
 ### 3.3 Variáveis de ambiente
 
@@ -171,6 +178,25 @@ Com a organização criada, o app já opera de verdade:
 - **Cálculo de capacidade**: isolado e testável em `src/domain/capacity.ts` — desconta almoço,
   bloqueios de agenda (feriados/ausências/reuniões) e aplica a margem de imprevistos configurada.
 
+## 5.3 Planejamento inteligente (Fase 4)
+
+- **Prioridade sugerida**: calculada automaticamente (`src/domain/priority.ts`) a partir da
+  proximidade do prazo, se a tarefa bloqueia outras, se ela mesma depende de algo ainda não
+  concluído, e do peso estratégico do cliente. Sempre vem com uma justificativa em português —
+  nunca é só um número escondido (seção 17 do briefing). A prioridade manual, quando definida,
+  tem precedência sobre a sugerida.
+- **Dependências entre tarefas** (no formulário de tarefa, seção "Dependências"): marque que uma
+  tarefa é bloqueada por outra; o banco rejeita qualquer combinação que crie um ciclo (A bloqueia
+  B bloqueia A), com um trigger dedicado, e a interface também confere antes de tentar salvar.
+- **Planejador automático** (botão "Planejar automaticamente" na Linha do Tempo): gera uma prévia
+  de agendamento para tarefas com responsável e estimativa que ainda não têm início planejado —
+  respeitando dependências (nunca agenda uma etapa antes de quem a bloqueia), capacidade diária de
+  cada pessoa e tarefas travadas (que nunca entram na proposta). Nada é aplicado até você revisar
+  a lista, desmarcar o que não quiser e confirmar. Cada aplicação fica registrada e pode ser
+  desfeita com um clique ("Desfazer última reorganização"), restaurando o início/fim planejado
+  anterior de cada tarefa afetada.
+- O motor do planejador (`src/domain/planner.ts`) é lógica pura, testada sem precisar de banco.
+
 ## 6. Testes
 
 ```bash
@@ -250,13 +276,14 @@ src/
   data/
     supabase/     cliente Supabase, tipos gerados do banco, mapeadores row → domínio
     repositories/ acesso a dados por entidade (única camada que fala com o Supabase)
-  domain/         tipos e regras de negócio puros, independentes do formato das tabelas —
-                  inclui capacity.ts (cálculo de capacidade/carga, testado sem banco)
+  domain/         tipos e regras de negócio puros, independentes do formato das tabelas e
+                  do React — capacity.ts (capacidade/carga), priority.ts (prioridade
+                  sugerida), dependencies.ts (ciclos e ordenação) e planner.ts (motor do
+                  planejador automático), todos testados sem precisar de banco
   hooks/          useOrgData (clientes/projetos/categorias/tarefas/membros/horários/
                   bloqueios com Realtime embutido) e useRealtimeTable (assinatura
                   genérica por tabela)
   pages/          telas roteadas
-  planner/        (Fase 4) motor de planejamento de agenda
   ai/             (Fase 5) integração com IA via interface AIProvider
 supabase/
   migrations/     migrations SQL versionadas, numeradas e aditivas
@@ -276,7 +303,7 @@ componentes React — apenas o inverso. Isso mantém a lógica testável sem pre
 - A chave usada no frontend é sempre a `anon public key`. A `service_role` nunca deve ser exposta
   no navegador nem commitada.
 
-## Limitações conhecidas (Fases 1, 2 e 3)
+## Limitações conhecidas (Fases 1 a 4)
 
 - Convites são compartilhados manualmente por link — não há envio automático de e-mail (exigiria
   configurar um serviço de e-mail transacional; decisão adiada por não ser bloqueadora).
@@ -286,10 +313,14 @@ componentes React — apenas o inverso. Isso mantém a lógica testável sem pre
 - Caixa de Entrada ainda é um placeholder de navegação — a interpretação por IA chega na Fase 5.
 - Categorias podem ser criadas/desativadas em Configurações, mas a reordenação visual (arrastar
   para cima/baixo) ainda não tem interface própria — dá para ajustar via banco se necessário.
-- Dependências entre tarefas, priorização automática, recorrências, anexos, lembretes e divisão em
-  blocos de foco (seções 16.2, 16.4, 17, 19, 20, 21 do briefing) ainda não existem — chegam nas
-  Fases 4 e 6. O planejador automático com prévia/desfazer também é Fase 4: por enquanto, mover uma
-  tarefa no Quadro, na Equipe ou na Linha do Tempo aplica a mudança na hora.
+- Recorrências, anexos, lembretes e divisão de tarefas longas em blocos de foco (seções 16.4, 20,
+  21 do briefing) ainda não existem — chegam na Fase 6.
+- O planejador automático (Fase 4) só agenda tarefas que ainda não têm início planejado — ele não
+  replaneja o que já está na agenda. Para isso, continue movendo manualmente pelo Quadro, Equipe ou
+  Linha do Tempo (que aplicam a mudança na hora). Ele também não divide uma tarefa em vários blocos
+  quando ela não cabe num dia só — sinaliza o conflito em vez de dividir.
+- "Necessidade de aprovação" (seção 17) ainda não é um campo próprio da tarefa, então não entra
+  ainda no cálculo de prioridade sugerida.
 - "Tarefas criadas por outra pessoa e ainda não visualizadas" (seção 14) não tem rastreamento
   próprio ainda — hoje isso é coberto pela notificação de atribuição.
 - Reordenação manual das tarefas dentro de "Hoje" em Meu Dia ainda não existe (a lista é ordenada
@@ -306,7 +337,6 @@ componentes React — apenas o inverso. Isso mantém a lógica testável sem pre
 
 Ver o histórico de commits e o briefing original para o detalhamento completo. Resumo:
 
-- **Fase 4** — prioridade sugerida, dependências, planejador automático com prévia/desfazer.
 - **Fase 5** — Caixa de Entrada Inteligente com IA (Anthropic), validação por schema.
 - **Fase 6** — recorrências, notificações, modelos de trabalho, exportação e backup administrativos.
 - **Fase 7** — testes ponta a ponta, acessibilidade, desempenho, documentação final.

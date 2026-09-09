@@ -32,6 +32,9 @@ export interface TaskInput {
   assignedTo?: string | null
   sourceText?: string | null
   tagNames?: string[]
+  suggestedPriority?: TaskPriority | null
+  priorityScore?: number | null
+  priorityReason?: string | null
 }
 
 export interface TaskFilters {
@@ -135,6 +138,9 @@ function toTaskRow(input: Partial<TaskInput>) {
     ...(input.splittable !== undefined ? { splittable: input.splittable } : {}),
     ...(input.assignedTo !== undefined ? { assigned_to: input.assignedTo } : {}),
     ...(input.sourceText !== undefined ? { source_text: input.sourceText } : {}),
+    ...(input.suggestedPriority !== undefined ? { suggested_priority: input.suggestedPriority } : {}),
+    ...(input.priorityScore !== undefined ? { priority_score: input.priorityScore } : {}),
+    ...(input.priorityReason !== undefined ? { priority_reason: input.priorityReason } : {}),
   }
 }
 

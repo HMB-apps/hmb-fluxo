@@ -1,14 +1,18 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { DndContext, PointerSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
 import { addDays, addWeeks, format, startOfWeek } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { useMembers, useTasks } from '../hooks/useOrgData'
+import { useAuth } from '../auth/AuthProvider'
+import { useCalendarBlocks, useDependencies, useMembers, useTasks, useWorkSchedules } from '../hooks/useOrgData'
 import { TaskFormModal } from '../components/tasks/TaskFormModal'
+import { PlannerModal } from '../components/planner/PlannerModal'
 import { dateKey } from '../domain/capacity'
 import { appConfig } from '../config/app'
 import { occupiesCapacity } from '../domain/task'
 import { updateTask } from '../data/repositories/taskRepository'
+import { getLastPlannerRun, undoPlannerRun } from '../data/repositories/plannerRunRepository'
 import type { TaskListItem } from '../domain/task'
+import type { PlannerRun } from '../domain/planning'
 
 function cellId(userId: string, day: string): string {
   return `${userId}::${day}`
@@ -57,12 +61,36 @@ function TimelineDayCell({
 }
 
 export function TimelinePage() {
+  const { organization } = useAuth()
   const { items: members } = useMembers()
   const { items: tasks, reload } = useTasks()
+  const { items: dependencies } = useDependencies()
+  const { items: schedules } = useWorkSchedules()
+  const { items: blocks } = useCalendarBlocks()
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: appConfig.weekStartsOn as 0 | 1 }))
   const [editing, setEditing] = useState<TaskListItem | null>(null)
+  const [planning, setPlanning] = useState(false)
+  const [lastRun, setLastRun] = useState<PlannerRun | null>(null)
+  const [undoing, setUndoing] = useState(false)
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
+
+  useEffect(() => {
+    if (!organization) return
+    getLastPlannerRun(organization.id).then(setLastRun)
+  }, [organization, tasks])
+
+  async function handleUndo() {
+    if (!lastRun) return
+    setUndoing(true)
+    try {
+      await undoPlannerRun(lastRun)
+      reload()
+      setLastRun(null)
+    } finally {
+      setUndoing(false)
+    }
+  }
 
   const days = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart])
   const dayKeys = days.map((d) => format(d, 'yyyy-MM-dd'))
@@ -113,6 +141,14 @@ export function TimelinePage() {
           <button type="button" className="secondary-button" onClick={() => setWeekStart((w) => addWeeks(w, 1))}>
             Próxima semana →
           </button>
+          <button type="button" className="primary-button" onClick={() => setPlanning(true)}>
+            Planejar automaticamente
+          </button>
+          {lastRun && (
+            <button type="button" className="secondary-button" onClick={() => void handleUndo()} disabled={undoing}>
+              {undoing ? 'Desfazendo…' : 'Desfazer última reorganização'}
+            </button>
+          )}
         </div>
       </div>
 
@@ -151,6 +187,17 @@ export function TimelinePage() {
       </DndContext>
 
       {editing && <TaskFormModal task={editing} onClose={() => setEditing(null)} onSaved={reload} />}
+
+      {planning && (
+        <PlannerModal
+          tasks={tasks}
+          dependencies={dependencies}
+          schedules={schedules}
+          blocks={blocks}
+          onClose={() => setPlanning(false)}
+          onApplied={reload}
+        />
+      )}
     </div>
   )
 }

@@ -1,7 +1,7 @@
-import { useState, type FormEvent } from 'react'
+import { useMemo, useState, type FormEvent } from 'react'
 import { Modal } from '../common/Modal'
 import { useAuth } from '../../auth/AuthProvider'
-import { useClients, useProjects, useCategories, useMembers } from '../../hooks/useOrgData'
+import { useClients, useProjects, useCategories, useMembers, useDependencies, useTasks } from '../../hooks/useOrgData'
 import {
   createTask,
   updateTask,
@@ -9,6 +9,9 @@ import {
   TaskConflictError,
   type TaskInput,
 } from '../../data/repositories/taskRepository'
+import { addDependency, removeDependency } from '../../data/repositories/dependencyRepository'
+import { computeSuggestedPriority } from '../../domain/priority'
+import { wouldCreateCycle } from '../../domain/dependencies'
 import { TASK_STATUS_LABELS, TASK_PRIORITY_LABELS } from '../../domain/task'
 import type { Task, TaskListItem, TaskPriority, TaskStatus } from '../../domain/task'
 
@@ -38,6 +41,8 @@ export function TaskFormModal({
   const { items: projects } = useProjects()
   const { items: categories } = useCategories()
   const { items: members } = useMembers()
+  const { items: allTasks, reload: reloadTasks } = useTasks()
+  const { items: allDependencies, reload: reloadDependencies } = useDependencies()
 
   const [title, setTitle] = useState(task?.title ?? '')
   const [description, setDescription] = useState(task?.description ?? '')
@@ -57,8 +62,40 @@ export function TaskFormModal({
   const [splittable, setSplittable] = useState(task?.splittable ?? true)
   const [tagsText, setTagsText] = useState(task && 'tags' in task ? task.tags.map((t) => t.name).join(', ') : '')
 
+  const [newDependencyId, setNewDependencyId] = useState('')
+  const [dependencyError, setDependencyError] = useState<string | null>(null)
+
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error' | 'conflict'>('idle')
   const [error, setError] = useState<string | null>(null)
+
+  const blockedByDeps = useMemo(
+    () => (task ? allDependencies.filter((d) => d.blockedTaskId === task.id) : []),
+    [allDependencies, task],
+  )
+  const blocksDeps = useMemo(
+    () => (task ? allDependencies.filter((d) => d.blockingTaskId === task.id) : []),
+    [allDependencies, task],
+  )
+
+  const taskById = useMemo(() => new Map(allTasks.map((t) => [t.id, t])), [allTasks])
+
+  const hasUnresolvedDependency = blockedByDeps.some((d) => {
+    const blocker = taskById.get(d.blockingTaskId)
+    return blocker && !['done', 'canceled', 'archived'].includes(blocker.status)
+  })
+
+  const selectedClient = clients.find((c) => c.id === clientId)
+
+  const suggested = useMemo(
+    () =>
+      computeSuggestedPriority({
+        deadlineAt: fromDateTimeLocal(deadlineAt),
+        blocksCount: blocksDeps.length,
+        hasUnresolvedDependency,
+        clientStrategicWeight: selectedClient?.strategicWeight ?? null,
+      }),
+    [deadlineAt, blocksDeps.length, hasUnresolvedDependency, selectedClient],
+  )
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault()
@@ -87,6 +124,9 @@ export function TaskFormModal({
         .split(',')
         .map((t) => t.trim())
         .filter(Boolean),
+      suggestedPriority: suggested.level,
+      priorityScore: suggested.score,
+      priorityReason: suggested.reason,
     }
 
     try {
@@ -116,6 +156,38 @@ export function TaskFormModal({
     onSaved()
     onClose()
   }
+
+  async function handleAddDependency() {
+    if (!task || !organization || !user || !newDependencyId) return
+    setDependencyError(null)
+    const edges = allDependencies.map((d) => ({ blockingTaskId: d.blockingTaskId, blockedTaskId: d.blockedTaskId }))
+    if (wouldCreateCycle(edges, newDependencyId, task.id)) {
+      setDependencyError('Isso criaria um ciclo de dependências entre as tarefas.')
+      return
+    }
+    try {
+      await addDependency(organization.id, user.id, newDependencyId, task.id)
+      setNewDependencyId('')
+      reloadDependencies()
+      reloadTasks()
+    } catch (err) {
+      setDependencyError(err instanceof Error ? err.message : 'Não foi possível adicionar a dependência.')
+    }
+  }
+
+  async function handleRemoveDependency(id: string) {
+    await removeDependency(id)
+    reloadDependencies()
+  }
+
+  const availableForDependency = task
+    ? allTasks.filter(
+        (t) =>
+          t.id !== task.id &&
+          !blockedByDeps.some((d) => d.blockingTaskId === t.id) &&
+          !['done', 'canceled', 'archived'].includes(t.status),
+      )
+    : []
 
   return (
     <Modal title={task ? 'Editar tarefa' : 'Nova tarefa'} onClose={onClose} wide>
@@ -190,7 +262,7 @@ export function TaskFormModal({
         <label>
           Prioridade manual
           <select value={manualPriority} onChange={(e) => setManualPriority(e.target.value as TaskPriority | '')}>
-            <option value="">Automática (Fase 4)</option>
+            <option value="">Usar a sugerida</option>
             {Object.entries(TASK_PRIORITY_LABELS).map(([value, label]) => (
               <option key={value} value={value}>
                 {label}
@@ -198,6 +270,11 @@ export function TaskFormModal({
             ))}
           </select>
         </label>
+
+        <div className="form-field-full" style={{ background: '#f8fafc', borderRadius: 6, padding: '8px 12px' }}>
+          <span className={`pill priority-${suggested.level}`}>Sugerida: {TASK_PRIORITY_LABELS[suggested.level]}</span>{' '}
+          <span style={{ fontSize: 12, color: 'var(--text)' }}>{suggested.reason}</span>
+        </div>
 
         <label>
           Prazo de entrega ao cliente
@@ -241,6 +318,55 @@ export function TaskFormModal({
           <input type="checkbox" checked={splittable} onChange={(e) => setSplittable(e.target.checked)} />
           Pode ser dividida em blocos
         </label>
+
+        {task && (
+          <div className="form-field-full">
+            <h3 style={{ marginTop: 0 }}>Dependências</h3>
+            {blockedByDeps.length > 0 && (
+              <div style={{ marginBottom: 8 }}>
+                <strong style={{ fontSize: 12 }}>Bloqueada por:</strong>
+                <ul className="invitation-list">
+                  {blockedByDeps.map((d) => (
+                    <li key={d.id} className="invitation-item">
+                      <div className="invitation-item-row">
+                        <span>{taskById.get(d.blockingTaskId)?.title ?? 'Tarefa removida'}</span>
+                        <button type="button" className="link-button" onClick={() => void handleRemoveDependency(d.id)}>
+                          Remover
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {blocksDeps.length > 0 && (
+              <div style={{ marginBottom: 8 }}>
+                <strong style={{ fontSize: 12 }}>Bloqueia:</strong>
+                <ul className="invitation-list">
+                  {blocksDeps.map((d) => (
+                    <li key={d.id} className="invitation-item">
+                      <span>{taskById.get(d.blockedTaskId)?.title ?? 'Tarefa removida'}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            <div className="inline-form">
+              <select value={newDependencyId} onChange={(e) => setNewDependencyId(e.target.value)}>
+                <option value="">Selecione uma tarefa que bloqueia esta…</option>
+                {availableForDependency.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.title}
+                  </option>
+                ))}
+              </select>
+              <button type="button" onClick={() => void handleAddDependency()} disabled={!newDependencyId}>
+                Adicionar
+              </button>
+            </div>
+            {dependencyError && <p className="auth-error">{dependencyError}</p>}
+          </div>
+        )}
 
         <div className="form-actions form-field-full">
           <div>

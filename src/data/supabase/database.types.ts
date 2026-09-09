@@ -11,6 +11,104 @@ export type Database = {
   }
   public: {
     Tables: {
+      planner_runs: {
+        Row: {
+          changes: Json
+          created_at: string
+          created_by: string
+          id: string
+          organization_id: string
+          undone_at: string | null
+        }
+        Insert: {
+          changes: Json
+          created_at?: string
+          created_by: string
+          id?: string
+          organization_id: string
+          undone_at?: string | null
+        }
+        Update: {
+          changes?: Json
+          created_at?: string
+          created_by?: string
+          id?: string
+          organization_id?: string
+          undone_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'planner_runs_created_by_fkey'
+            columns: ['created_by']
+            isOneToOne: false
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'planner_runs_organization_id_fkey'
+            columns: ['organization_id']
+            isOneToOne: false
+            referencedRelation: 'organizations'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      task_dependencies: {
+        Row: {
+          blocked_task_id: string
+          blocking_task_id: string
+          created_at: string
+          created_by: string
+          id: string
+          organization_id: string
+        }
+        Insert: {
+          blocked_task_id: string
+          blocking_task_id: string
+          created_at?: string
+          created_by: string
+          id?: string
+          organization_id: string
+        }
+        Update: {
+          blocked_task_id?: string
+          blocking_task_id?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          organization_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'task_dependencies_blocked_task_id_fkey'
+            columns: ['blocked_task_id']
+            isOneToOne: false
+            referencedRelation: 'tasks'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'task_dependencies_blocking_task_id_fkey'
+            columns: ['blocking_task_id']
+            isOneToOne: false
+            referencedRelation: 'tasks'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'task_dependencies_created_by_fkey'
+            columns: ['created_by']
+            isOneToOne: false
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'task_dependencies_organization_id_fkey'
+            columns: ['organization_id']
+            isOneToOne: false
+            referencedRelation: 'organizations'
+            referencedColumns: ['id']
+          },
+        ]
+      }
       calendar_blocks: {
         Row: {
           created_at: string

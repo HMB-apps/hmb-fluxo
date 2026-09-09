@@ -7,9 +7,11 @@ import { listCategories } from '../data/repositories/categoryRepository'
 import { listOrganizationMembers } from '../data/repositories/organizationRepository'
 import { listTasks } from '../data/repositories/taskRepository'
 import { listWorkSchedules, listCalendarBlocks } from '../data/repositories/scheduleRepository'
+import { listDependenciesForOrganization } from '../data/repositories/dependencyRepository'
 import type { Client, Project, Category, TaskListItem } from '../domain/task'
 import type { MemberWithProfile } from '../domain/types'
 import type { WorkSchedule, CalendarBlock } from '../domain/schedule'
+import type { TaskDependency } from '../domain/planning'
 
 function useOrgResource<T>(
   table: string,
@@ -73,4 +75,8 @@ export function useWorkSchedules() {
 
 export function useCalendarBlocks() {
   return useOrgResource<CalendarBlock>('calendar_blocks', (orgId) => listCalendarBlocks(orgId))
+}
+
+export function useDependencies() {
+  return useOrgResource<TaskDependency>('task_dependencies', (orgId) => listDependenciesForOrganization(orgId))
 }
