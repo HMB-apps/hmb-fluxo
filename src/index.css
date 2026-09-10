@@ -869,3 +869,58 @@ input {
   cursor: grab;
   touch-action: none;
 }
+
+/* ---------------------------------------------------------------------- */
+/* Caixa de Entrada Inteligente                                            */
+/* ---------------------------------------------------------------------- */
+
+.inbox-draft-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px;
+  margin-bottom: 14px;
+  background: var(--surface);
+}
+
+.low-confidence-field input,
+.low-confidence-field select,
+.low-confidence-field textarea {
+  border-color: var(--warning, #d97706);
+  background: #fffbeb;
+}
+
+.confidence-hint {
+  font-weight: 400;
+  font-size: 11px;
+  color: #b45309;
+}
+
+.inbox-entry-item {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  margin-bottom: 8px;
+  cursor: pointer;
+}
+
+.inbox-entry-item:hover {
+  border-color: var(--accent);
+}
+
+.inbox-entry-text {
+  font-size: 13px;
+  color: var(--text-h);
+  white-space: pre-wrap;
+  max-height: 60px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.inbox-entry-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: #94a3b8;
+  margin-top: 6px;
+}

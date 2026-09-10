@@ -15,6 +15,7 @@ import { useCategories } from '../hooks/useOrgData'
 import { useRealtimeTable } from '../hooks/useRealtimeTable'
 import { createCategory, updateCategory } from '../data/repositories/categoryRepository'
 import { WorkScheduleSection } from '../components/settings/WorkScheduleSection'
+import { AiSettingsSection } from '../components/settings/AiSettingsSection'
 
 export function SettingsPage() {
   const { profile, organization, user } = useAuth()
@@ -266,6 +267,11 @@ export function SettingsPage() {
             Adicionar
           </button>
         </form>
+      </section>
+
+      <section className="settings-section">
+        <h2>Integração com IA</h2>
+        <AiSettingsSection />
       </section>
     </div>
   )

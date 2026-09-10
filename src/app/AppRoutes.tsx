@@ -16,6 +16,7 @@ import { MyDayPage } from '../pages/MyDayPage'
 import { TeamPage } from '../pages/TeamPage'
 import { CalendarPage } from '../pages/CalendarPage'
 import { TimelinePage } from '../pages/TimelinePage'
+import { InboxPage } from '../pages/InboxPage'
 import { getPendingInvitationToken } from '../auth/pendingInvitation'
 
 export function AppRoutes() {
@@ -60,7 +61,7 @@ export function AppRoutes() {
           <Route index element={<Navigate to="/meu-dia" replace />} />
           <Route path="/meu-dia" element={<MyDayPage />} />
           <Route path="/equipe" element={<TeamPage />} />
-          <Route path="/caixa-de-entrada" element={<PlaceholderPage title="Caixa de entrada" phase="Fase 5" />} />
+          <Route path="/caixa-de-entrada" element={<InboxPage />} />
           <Route path="/linha-do-tempo" element={<TimelinePage />} />
           <Route path="/quadro" element={<BoardPage />} />
           <Route path="/calendario" element={<CalendarPage />} />

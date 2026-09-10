@@ -29,10 +29,15 @@ function fromDateTimeLocal(value: string): string | null {
 
 export function TaskFormModal({
   task,
+  initialTitle,
+  initialDescription,
   onClose,
   onSaved,
 }: {
   task: Task | TaskListItem | null
+  /** Usado só quando `task` é null (ex.: fallback manual da Caixa de Entrada). */
+  initialTitle?: string
+  initialDescription?: string
   onClose: () => void
   onSaved: () => void
 }) {
@@ -44,8 +49,8 @@ export function TaskFormModal({
   const { items: allTasks, reload: reloadTasks } = useTasks()
   const { items: allDependencies, reload: reloadDependencies } = useDependencies()
 
-  const [title, setTitle] = useState(task?.title ?? '')
-  const [description, setDescription] = useState(task?.description ?? '')
+  const [title, setTitle] = useState(task?.title ?? initialTitle ?? '')
+  const [description, setDescription] = useState(task?.description ?? initialDescription ?? '')
   const [clientId, setClientId] = useState(task?.clientId ?? '')
   const [projectId, setProjectId] = useState(task?.projectId ?? '')
   const [categoryId, setCategoryId] = useState(task?.categoryId ?? '')

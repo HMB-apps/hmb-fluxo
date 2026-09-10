@@ -11,6 +11,131 @@ export type Database = {
   }
   public: {
     Tables: {
+      inbox_entries: {
+        Row: {
+          created_at: string
+          created_by: string
+          id: string
+          organization_id: string
+          processed_at: string | null
+          raw_text: string
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          id?: string
+          organization_id: string
+          processed_at?: string | null
+          raw_text: string
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          id?: string
+          organization_id?: string
+          processed_at?: string | null
+          raw_text?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'inbox_entries_created_by_fkey'
+            columns: ['created_by']
+            isOneToOne: false
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'inbox_entries_organization_id_fkey'
+            columns: ['organization_id']
+            isOneToOne: false
+            referencedRelation: 'organizations'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      ai_interpretations: {
+        Row: {
+          created_at: string
+          error: string | null
+          id: string
+          inbox_entry_id: string
+          items: Json | null
+          model: string
+          organization_id: string
+          provider: string
+        }
+        Insert: {
+          created_at?: string
+          error?: string | null
+          id?: string
+          inbox_entry_id: string
+          items?: Json | null
+          model: string
+          organization_id: string
+          provider: string
+        }
+        Update: {
+          created_at?: string
+          error?: string | null
+          id?: string
+          inbox_entry_id?: string
+          items?: Json | null
+          model?: string
+          organization_id?: string
+          provider?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'ai_interpretations_inbox_entry_id_fkey'
+            columns: ['inbox_entry_id']
+            isOneToOne: false
+            referencedRelation: 'inbox_entries'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ai_interpretations_organization_id_fkey'
+            columns: ['organization_id']
+            isOneToOne: false
+            referencedRelation: 'organizations'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      ai_settings: {
+        Row: {
+          enabled: boolean
+          model: string
+          organization_id: string
+          provider: string
+          updated_at: string
+        }
+        Insert: {
+          enabled?: boolean
+          model?: string
+          organization_id: string
+          provider?: string
+          updated_at?: string
+        }
+        Update: {
+          enabled?: boolean
+          model?: string
+          organization_id?: string
+          provider?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'ai_settings_organization_id_fkey'
+            columns: ['organization_id']
+            isOneToOne: true
+            referencedRelation: 'organizations'
+            referencedColumns: ['id']
+          },
+        ]
+      }
       planner_runs: {
         Row: {
           changes: Json

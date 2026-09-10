@@ -8,10 +8,12 @@ import { listOrganizationMembers } from '../data/repositories/organizationReposi
 import { listTasks } from '../data/repositories/taskRepository'
 import { listWorkSchedules, listCalendarBlocks } from '../data/repositories/scheduleRepository'
 import { listDependenciesForOrganization } from '../data/repositories/dependencyRepository'
+import { listInboxEntries } from '../data/repositories/inboxRepository'
 import type { Client, Project, Category, TaskListItem } from '../domain/task'
 import type { MemberWithProfile } from '../domain/types'
 import type { WorkSchedule, CalendarBlock } from '../domain/schedule'
 import type { TaskDependency } from '../domain/planning'
+import type { InboxEntry } from '../domain/inbox'
 
 function useOrgResource<T>(
   table: string,
@@ -79,4 +81,8 @@ export function useCalendarBlocks() {
 
 export function useDependencies() {
   return useOrgResource<TaskDependency>('task_dependencies', (orgId) => listDependenciesForOrganization(orgId))
+}
+
+export function useInboxEntries() {
+  return useOrgResource<InboxEntry>('inbox_entries', (orgId) => listInboxEntries(orgId))
 }

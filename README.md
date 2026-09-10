@@ -6,20 +6,23 @@ instalável, com banco de dados central (Supabase) e autenticação individual p
 > Nome, cores e demais itens de identidade ficam centralizados em [`src/config/branding.ts`](src/config/branding.ts)
 > para facilitar troca futura.
 
-Este README cobre as **Fases 1 a 4**: autenticação, organização HMB, convites, políticas de
+Este README cobre as **Fases 1 a 5**: autenticação, organização HMB, convites, políticas de
 segurança (RLS), o núcleo de gestão (clientes, projetos, categorias, tarefas com CRUD completo,
 lixeira, histórico, notificações internas), as visualizações operacionais do dia a dia (Meu Dia,
-Quadro Kanban com arrastar-e-soltar, Calendário, Linha do Tempo, capacidade de agenda) e o
+Quadro Kanban com arrastar-e-soltar, Calendário, Linha do Tempo, capacidade de agenda), o
 planejamento inteligente (prioridade sugerida, dependências entre tarefas, planejador automático
-com prévia e desfazer). A fase restante (Caixa de Entrada com IA) será implementada em seguida,
-sem remover o que já funciona aqui.
+com prévia e desfazer) e a Caixa de Entrada Inteligente com IA (Google Gemini, gratuito). As fases
+restantes (recorrências, modelos de trabalho, exportação/backup administrativos, refinamento final)
+serão implementadas em seguida, sem remover o que já funciona aqui.
 
-> Status: Fases 1 a 4 validadas em um projeto Supabase real (`hmb-fluxo`, região `sa-east-1`),
-> incluindo organização, convite/aceite por Michel e Helena, CRUD de clientes/tarefas, notificação
-> automática, edição com controle de concorrência, histórico de auditoria, cálculo de capacidade
-> diária, as telas Meu Dia/Equipe/Calendário/Linha do Tempo, dependências entre tarefas com
-> detecção de ciclo, e o planejador automático (prévia, aplicar parcialmente e desfazer) com dados
-> reais.
+> Status: Fases 1 a 4 validadas de ponta a ponta em um projeto Supabase real (`hmb-fluxo`, região
+> `sa-east-1`). A Fase 5 (Caixa de Entrada com IA) está implementada e publicada (Edge Function
+> `interpret-inbox` + Google Gemini), mas a validação final ficou pendente: no momento do teste, a
+> API gratuita do Gemini estava respondendo `503 UNAVAILABLE` ("alta demanda") de forma persistente
+> — um problema temporário do lado do Google, não do código (o fluxo de erro/retry do app tratou
+> isso corretamente, mostrando "Falha na interpretação" com opção de tentar de novo ou criar a
+> tarefa manualmente). Vale testar de novo mais tarde pelo botão **Testar conexão** em
+> Configurações → Integração com IA.
 
 ---
 
@@ -83,6 +86,10 @@ O que cada migration faz:
 | `0021_planner_runs.sql` | Tabela `planner_runs` (histórico do planejador, para desfazer) |
 | `0022_rls_fase4.sql` | RLS de dependências e execuções do planejador |
 | `0023_realtime_fase4.sql` | Habilita Realtime em `task_dependencies` e `planner_runs` |
+| `0024_inbox_and_ai.sql` | Tabelas `inbox_entries`, `ai_interpretations` e `ai_settings` |
+| `0025_rls_fase5.sql` | RLS da Caixa de Entrada, interpretações e preferências de IA |
+| `0026_realtime_fase5.sql` | Habilita Realtime nas três tabelas acima |
+| `0027`–`0029` | Ajustes do modelo padrão do Gemini conforme o Google descontinuava versões durante os testes (histórico — ver `supabase/migrations/`) |
 
 ### 3.3 Variáveis de ambiente
 
@@ -98,6 +105,25 @@ VITE_SUPABASE_ANON_KEY=coloque-a-anon-key-aqui
 ```
 
 `.env.local` nunca deve ser commitado (já está no `.gitignore`).
+
+### 3.4 Configurar a IA (Google Gemini, gratuito)
+
+A interpretação da Caixa de Entrada (Fase 5) roda numa Edge Function do Supabase, não no
+frontend — a chave nunca fica no `.env` do app.
+
+1. Crie uma chave gratuita em [aistudio.google.com/apikey](https://aistudio.google.com/apikey)
+   (começa com `AIzaSy...`).
+2. No [painel do Supabase](https://supabase.com/dashboard) do seu projeto, vá em **Edge Functions
+   → Secrets** (ou **Project Settings → Edge Functions**) e adicione:
+   - Nome: `GEMINI_API_KEY`
+   - Valor: a chave copiada no passo 1
+3. Publique a função (se ainda não estiver publicada):
+   ```bash
+   supabase functions deploy interpret-inbox
+   ```
+
+Sem essa chave configurada, o resto do app funciona normalmente — só a interpretação por IA fica
+indisponível, mostrando um erro claro em vez de travar (regra da seção 5.1 do briefing).
 
 ## 4. Execução local
 
@@ -197,6 +223,36 @@ Com a organização criada, o app já opera de verdade:
   anterior de cada tarefa afetada.
 - O motor do planejador (`src/domain/planner.ts`) é lógica pura, testada sem precisar de banco.
 
+## 5.4 Caixa de Entrada Inteligente com IA (Fase 5)
+
+- **Como usar** (`/caixa-de-entrada`): escreva livremente uma ou várias demandas no campo de texto.
+  **Salvar na caixa de entrada** grava o texto bruto na hora, sem IA — ele nunca se perde, mesmo
+  que a interpretação falhe ou esteja desativada (seção 5.1 do briefing). **Interpretar e
+  organizar** salva e já manda interpretar.
+- **Arquitetura** (seção 24.1): a chamada à IA acontece numa Edge Function do Supabase
+  (`supabase/functions/interpret-inbox`), nunca do navegador — a chave fica só no servidor, como
+  segredo de ambiente (`GEMINI_API_KEY`), configurado direto no painel do Supabase (nunca passa
+  pelo código nem pelo Git). A função usa uma interface `AiProvider` interna com uma implementação
+  `GeminiProvider`; trocar de fornecedor no futuro (ex.: Claude, se um dia fizer sentido usar a API
+  paga) significa implementar outra classe, sem mudar o resto da função.
+- **Revisão antes de aplicar** (seção 10.4): cada demanda interpretada vira um cartão editável, com
+  os campos de baixa confiança destacados e a justificativa da IA ao lado. Você pode editar
+  qualquer campo, descartar uma demanda individualmente, ou confirmar todas de uma vez — nada é
+  criado até confirmar. As tarefas nascem com status "Precisa revisar".
+- **Cada campo interpretado carrega valor, confiança (0-1), justificativa e o trecho do texto
+  original que originou aquele valor** (seção 24.3) — a resposta da IA é validada nesse formato
+  antes de qualquer gravação, nunca é salva "crua".
+- **Dependências entre demandas do mesmo texto**: se a IA perceber que uma demanda depende de outra
+  do mesmo texto (ex.: "o resumo depende da análise da campanha"), a dependência já vem marcada na
+  revisão e é criada automaticamente ao confirmar.
+- **Falha da IA** (seção 10.5): o texto continua salvo, o erro aparece de forma simples, e há um
+  botão para tentar de novo ou **Transformar manualmente** (abre o formulário de tarefa já com o
+  texto original preenchido).
+- **Configurações → Integração com IA**: ligar/desligar a interpretação, ver o provedor e o modelo
+  configurados, testar a conexão, e um aviso claro do que é enviado ao provedor externo (só o texto
+  digitado e os nomes de clientes/categorias já cadastrados — nunca o histórico completo, seção
+  24.4).
+
 ## 6. Testes
 
 ```bash
@@ -269,7 +325,9 @@ src/
     clients/      formulário de cliente
     projects/     formulário de projeto
     tasks/        formulário completo de tarefa, cartão e coluna do Kanban
-    settings/     configuração de horário de trabalho
+    settings/     configuração de horário de trabalho e integração com IA
+    inbox/        revisão das demandas interpretadas pela IA
+    planner/      prévia do planejamento automático
     common/       Modal genérico e outros componentes reutilizáveis
   config/         identidade visual, config regional e navegação — nenhum outro
                   arquivo deve hardcodar nome do produto, cores ou timezone
@@ -281,12 +339,14 @@ src/
                   sugerida), dependencies.ts (ciclos e ordenação) e planner.ts (motor do
                   planejador automático), todos testados sem precisar de banco
   hooks/          useOrgData (clientes/projetos/categorias/tarefas/membros/horários/
-                  bloqueios com Realtime embutido) e useRealtimeTable (assinatura
-                  genérica por tabela)
+                  bloqueios/caixa de entrada com Realtime embutido) e useRealtimeTable
+                  (assinatura genérica por tabela)
   pages/          telas roteadas
-  ai/             (Fase 5) integração com IA via interface AIProvider
 supabase/
   migrations/     migrations SQL versionadas, numeradas e aditivas
+  functions/
+    interpret-inbox/  Edge Function que chama a IA (Fase 5) — só código de backend,
+                       nunca embarcado no bundle do frontend
 e2e/              testes Playwright
 ```
 
@@ -303,18 +363,24 @@ componentes React — apenas o inverso. Isso mantém a lógica testável sem pre
 - A chave usada no frontend é sempre a `anon public key`. A `service_role` nunca deve ser exposta
   no navegador nem commitada.
 
-## Limitações conhecidas (Fases 1 a 4)
+## Limitações conhecidas (Fases 1 a 5)
 
 - Convites são compartilhados manualmente por link — não há envio automático de e-mail (exigiria
   configurar um serviço de e-mail transacional; decisão adiada por não ser bloqueadora).
 - Não há tela de criação de usuário dentro do app para o primeiro administrador; ele é criado pelo
   painel do Supabase (decisão intencional: evita expor cadastro público, conforme a seção 12.4 do
   briefing).
-- Caixa de Entrada ainda é um placeholder de navegação — a interpretação por IA chega na Fase 5.
 - Categorias podem ser criadas/desativadas em Configurações, mas a reordenação visual (arrastar
   para cima/baixo) ainda não tem interface própria — dá para ajustar via banco se necessário.
 - Recorrências, anexos, lembretes e divisão de tarefas longas em blocos de foco (seções 16.4, 20,
   21 do briefing) ainda não existem — chegam na Fase 6.
+- Caixa de Entrada: só aceita texto por enquanto — áudio, imagens, PDFs e links (seção 10.2) ficam
+  para uma evolução futura, já previstos no banco (a tabela `inbox_entries` guarda o texto bruto
+  independente de como a interpretação evolui).
+- A validação de conexão com o Gemini foi feita, mas a interpretação de um texto real ainda não foi
+  confirmada de ponta a ponta — a API gratuita estava retornando `503` (alta demanda) no momento do
+  teste. O código e o fluxo de erro/retry estão prontos; falta só repetir o teste quando a API
+  estiver disponível (ver nota de status no topo deste README).
 - O planejador automático (Fase 4) só agenda tarefas que ainda não têm início planejado — ele não
   replaneja o que já está na agenda. Para isso, continue movendo manualmente pelo Quadro, Equipe ou
   Linha do Tempo (que aplicam a mudança na hora). Ele também não divide uma tarefa em vários blocos
@@ -337,6 +403,5 @@ componentes React — apenas o inverso. Isso mantém a lógica testável sem pre
 
 Ver o histórico de commits e o briefing original para o detalhamento completo. Resumo:
 
-- **Fase 5** — Caixa de Entrada Inteligente com IA (Anthropic), validação por schema.
 - **Fase 6** — recorrências, notificações, modelos de trabalho, exportação e backup administrativos.
 - **Fase 7** — testes ponta a ponta, acessibilidade, desempenho, documentação final.
