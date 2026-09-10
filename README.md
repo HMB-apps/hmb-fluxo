@@ -320,13 +320,38 @@ npm run preview   # serve o build localmente para conferência
 
 ## 8. Deploy (HTTPS obrigatório para PWA)
 
+> **Em produção**: https://hmb-fluxo.vercel.app — publicado na Vercel, ligado ao repositório
+> `HMB-apps/hmb-fluxo` (branch `master`); todo `git push` nessa branch gera um novo deploy
+> automaticamente.
+
 Qualquer hospedagem estática com HTTPS funciona (Vercel, Netlify, Cloudflare Pages). Passos gerais:
 
 1. Conecte o repositório à plataforma escolhida.
 2. Configure as variáveis de ambiente `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` no painel da
-   hospedagem (nunca a `service_role`).
-3. Comando de build: `npm run build`. Diretório de saída: `dist`.
-4. Configure fallback de rotas para `index.html` (SPA) — necessário para rotas como `/convite/:token`.
+   hospedagem (nunca a `service_role`) — **na Vercel, marque-as como tipo "Config" (não "Secret")**;
+   variáveis marcadas como "Secret" não puderam ser conferidas visualmente durante a configuração
+   deste projeto, o que mascarou um problema real de valor.
+3. Comando de build: `npm run build`. Diretório de saída: `dist`. Framework detectado
+   automaticamente como Vite.
+4. Configure fallback de rotas para `index.html` (SPA) — necessário para rotas como
+   `/convite/:token`. Na Vercel isso é feito pelo [`vercel.json`](vercel.json) na raiz do projeto
+   (já incluso no repositório).
+5. Depois do primeiro deploy, sempre confira se as variáveis de ambiente realmente entraram no
+   pacote publicado antes de considerar o deploy concluído (ver "Verificação pós-deploy" abaixo) —
+   um deploy pode terminar como "Ready" mesmo tendo rodado sem as variáveis corretas.
+
+### Verificação pós-deploy
+
+Como variáveis `VITE_*` são embutidas no código em tempo de build (não lidas em tempo de
+execução), um deploy "com sucesso" não garante que elas chegaram lá. Confira sempre depois de
+publicar:
+
+1. Abra o site publicado e tente entrar com um e-mail/senha inválidos.
+2. Se aparecer **"E-mail ou senha incorretos."**, a conexão com o Supabase está correta.
+3. Se aparecer **"Não foi possível entrar. Verifique sua conexão e tente novamente."**, o app está
+   rodando sem as variáveis reais (caiu no valor de placeholder do código). Nesse caso, confira em
+   Configurações do projeto → Environment Variables se `VITE_SUPABASE_URL` e
+   `VITE_SUPABASE_ANON_KEY` existem com os valores certos, e gere um novo deploy.
 
 ## 9. Instalação como PWA (Edge/Chrome, Windows)
 
@@ -519,7 +544,8 @@ componentes React — apenas o inverso. Isso mantém a lógica testável sem pre
 - [x] Acessibilidade básica: diálogos com foco/Esc/`role="dialog"`, notificações navegáveis por
       teclado, rótulos e `autocomplete` em todos os formulários.
 - [x] Manual de uso não técnico para Michel e Helena (`MANUAL_DE_USO.md`).
-- [ ] Deploy em produção com HTTPS (passo final, depende de escolher a hospedagem — ver seção 8).
+- [x] Deploy em produção com HTTPS — https://hmb-fluxo.vercel.app (Vercel, deploy automático a
+      partir de `master`, ver seção 8).
 - [ ] Ícones PNG definitivos, quando a HMB tiver uma logo final (ver limitação acima).
 - [ ] Validação de ponta a ponta da interpretação por IA (Fase 5), pendente só da disponibilidade
       da API gratuita do Gemini (ver nota de status no topo deste README).
