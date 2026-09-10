@@ -6,22 +6,24 @@ instalável, com banco de dados central (Supabase) e autenticação individual p
 > Nome, cores e demais itens de identidade ficam centralizados em [`src/config/branding.ts`](src/config/branding.ts)
 > para facilitar troca futura.
 
-Este README cobre as **Fases 1 a 6**: autenticação, organização HMB, convites, políticas de
-segurança (RLS), o núcleo de gestão (clientes, projetos, categorias, tarefas com CRUD completo,
-lixeira, histórico, notificações internas), as visualizações operacionais do dia a dia (Meu Dia,
-Quadro Kanban com arrastar-e-soltar, Calendário, Linha do Tempo, capacidade de agenda), o
-planejamento inteligente (prioridade sugerida, dependências entre tarefas, planejador automático
-com prévia e desfazer), a Caixa de Entrada Inteligente com IA (Google Gemini, gratuito) e a rotina e
-segurança dos dados (recorrências, modelos de trabalho, exportação administrativa). A fase restante
-(refinamento final, ponta a ponta) será implementada em seguida, sem remover o que já funciona aqui.
+Este README cobre as **Fases 1 a 7** (todo o briefing original): autenticação, organização HMB,
+convites, políticas de segurança (RLS), o núcleo de gestão (clientes, projetos, categorias, tarefas
+com CRUD completo, lixeira, histórico, notificações internas), as visualizações operacionais do dia
+a dia (Meu Dia, Quadro Kanban com arrastar-e-soltar, Calendário, Linha do Tempo, capacidade de
+agenda), o planejamento inteligente (prioridade sugerida, dependências entre tarefas, planejador
+automático com prévia e desfazer), a Caixa de Entrada Inteligente com IA (Google Gemini, gratuito),
+a rotina e segurança dos dados (recorrências, modelos de trabalho, exportação administrativa) e o
+polimento final (testes ponta a ponta, tratamento de erros, desempenho, acessibilidade, manual de
+uso). Para quem só vai usar o dia a dia, veja o [Manual de uso](MANUAL_DE_USO.md), sem termos
+técnicos.
 
-> Status: Fases 1 a 4 e 6 validadas de ponta a ponta em um projeto Supabase real (`hmb-fluxo`, região
-> `sa-east-1`). A Fase 5 (Caixa de Entrada com IA) está implementada e publicada (Edge Function
-> `interpret-inbox` + Google Gemini), mas a validação final ficou pendente: no momento do teste, a
-> API gratuita do Gemini estava respondendo `503 UNAVAILABLE` ("alta demanda") de forma persistente
-> — um problema temporário do lado do Google, não do código (o fluxo de erro/retry do app tratou
-> isso corretamente, mostrando "Falha na interpretação" com opção de tentar de novo ou criar a
-> tarefa manualmente). Vale testar de novo mais tarde pelo botão **Testar conexão** em
+> Status: Fases 1 a 4, 6 e 7 validadas de ponta a ponta em um projeto Supabase real (`hmb-fluxo`,
+> região `sa-east-1`). A Fase 5 (Caixa de Entrada com IA) está implementada e publicada (Edge
+> Function `interpret-inbox` + Google Gemini), mas a validação final ficou pendente: no momento do
+> teste, a API gratuita do Gemini estava respondendo `503 UNAVAILABLE` ("alta demanda") de forma
+> persistente — um problema temporário do lado do Google, não do código (o fluxo de erro/retry do
+> app tratou isso corretamente, mostrando "Falha na interpretação" com opção de tentar de novo ou
+> criar a tarefa manualmente). Vale testar de novo mais tarde pelo botão **Testar conexão** em
 > Configurações → Integração com IA.
 
 ---
@@ -278,6 +280,29 @@ Com a organização criada, o app já opera de verdade:
   11 "Backup e restauração" abaixo). Como o Row Level Security já restringe cada tabela à própria
   organização, essa exportação nunca pode trazer dados de outra organização, mesmo por engano.
 
+## 5.6 Polimento final (Fase 7)
+
+- **Tratamento de erros**: um limite de erro (`ErrorBoundary`) envolve todo o app — se uma tela
+  quebrar por um erro de renderização inesperado, aparece uma mensagem clara com opção de recarregar
+  em vez de uma página em branco. Erros de rede/salvamento continuam tratados individualmente em
+  cada tela (mensagens em português, nunca um erro técnico cru).
+- **Desempenho**: as telas fora do login (Meu Dia, Quadro, Configurações etc.) agora carregam sob
+  demanda (`React.lazy`), uma por rota — o pacote inicial caiu de ~664 KB para ~326 KB (script
+  principal), e cada tela chega em um pedaço separado só quando a pessoa navega até ela.
+- **Acessibilidade**: as janelas (`Modal`) agora fecham com a tecla **Esc**, recebem foco ao abrir e
+  são anunciadas como diálogo (`role="dialog"`) para leitores de tela; itens de notificação também
+  respondem a Enter/Espaço, não só a clique do mouse; o sino de notificações fecha ao clicar fora ou
+  pressionar Esc. Rótulos de formulário, `autocomplete` e textos alternativos já seguiam essa prática
+  desde as fases anteriores.
+- **Testes de ponta a ponta** (`e2e/smoke.spec.ts`, Playwright): carregamento do app, redirecionamento
+  de quem não está autenticado para o login, presença dos campos de login, mensagem de erro real ao
+  tentar entrar com credenciais inválidas (contra o Supabase de verdade) e validação do
+  `manifest.webmanifest` do PWA. Fluxos que exigem uma conta real (criar tarefa, etc.) continuam
+  cobertos pelos testes unitários de domínio e pela verificação manual — não há credenciais de teste
+  fixas no repositório por segurança.
+- **Manual de uso**: [`MANUAL_DE_USO.md`](MANUAL_DE_USO.md) — guia não técnico para o dia a dia de
+  Michel e Helena, cobrindo cada item do menu e as tarefas mais comuns.
+
 ## 6. Testes
 
 ```bash
@@ -387,7 +412,8 @@ src/
                   trabalho e exportação/backup
     inbox/        revisão das demandas interpretadas pela IA
     planner/      prévia do planejamento automático
-    common/       Modal genérico e outros componentes reutilizáveis
+    common/       Modal genérico (com foco/Esc/role="dialog"), ErrorBoundary e outros
+                  componentes reutilizáveis
   config/         identidade visual, config regional e navegação — nenhum outro
                   arquivo deve hardcodar nome do produto, cores ou timezone
   data/
@@ -423,7 +449,7 @@ componentes React — apenas o inverso. Isso mantém a lógica testável sem pre
 - A chave usada no frontend é sempre a `anon public key`. A `service_role` nunca deve ser exposta
   no navegador nem commitada.
 
-## Limitações conhecidas (Fases 1 a 6)
+## Limitações conhecidas (Fases 1 a 7)
 
 - Convites são compartilhados manualmente por link — não há envio automático de e-mail (exigiria
   configurar um serviço de e-mail transacional; decisão adiada por não ser bloqueadora).
@@ -464,10 +490,42 @@ componentes React — apenas o inverso. Isso mantém a lógica testável sem pre
   frente cobre isso na prática, bastando gerar de vez em quando.
 - Restauração de um backup em JSON (seção 11) é manual — não existe ainda uma tela de "importar
   backup" dentro do app.
+- Ícones do PWA são SVG (não PNG) com um placeholder de marca simples (a letra "H") — funcionam
+  normalmente para instalar no Chrome/Edge (Windows/Android), mas o iOS/Safari não aceita SVG como
+  ícone de tela inicial e usa uma captura da página como substituto. Gerar ícones PNG reais a partir
+  de uma logo definitiva da HMB é uma tarefa de poucos minutos quando essa logo existir.
+- Testes automatizados de ponta a ponta cobrem o que é seguro testar sem credenciais reais no
+  repositório (carregamento, redirecionamento de autenticação, erro de login, manifest do PWA);
+  fluxos que exigem uma conta autenticada (criar/mover tarefas, etc.) são cobertos pelos testes
+  unitários de domínio (38 testes) e por verificação manual em cada fase, não por Playwright — expor
+  uma senha de teste no repositório não seria uma prática segura para um app de produção real.
+- Não há telemetria/monitoramento de erros em produção (ex.: Sentry) — o `ErrorBoundary` evita a
+  tela em branco, mas erros só ficam registrados no console do navegador de quem os encontrou; se
+  isso passar a importar, é um serviço para adicionar depois, sem mudar a arquitetura atual.
+
+## Checklist de entrega (Fase 7)
+
+- [x] Todas as 7 fases do briefing implementadas e documentadas neste README.
+- [x] `npx tsc -b` sem erros.
+- [x] `npm run test` — suíte de domínio (Vitest) passando.
+- [x] `npm run test:e2e` — smoke tests (Playwright) passando, inclusive um teste real de login
+      inválido contra o Supabase de produção.
+- [x] `npm run build` sem avisos de chunk grande (bundle inicial dividido por rota).
+- [x] `get_advisors` (segurança) sem avisos novos além dos já documentados e intencionais.
+- [x] RLS confirmado em todas as tabelas de negócio, com checklist de teste manual documentado
+      (seção 11.1).
+- [x] Tratamento de erro de renderização (`ErrorBoundary`) e de erros de rede/salvamento (mensagens
+      em português em cada tela) cobrindo o app inteiro.
+- [x] Acessibilidade básica: diálogos com foco/Esc/`role="dialog"`, notificações navegáveis por
+      teclado, rótulos e `autocomplete` em todos os formulários.
+- [x] Manual de uso não técnico para Michel e Helena (`MANUAL_DE_USO.md`).
+- [ ] Deploy em produção com HTTPS (passo final, depende de escolher a hospedagem — ver seção 8).
+- [ ] Ícones PNG definitivos, quando a HMB tiver uma logo final (ver limitação acima).
+- [ ] Validação de ponta a ponta da interpretação por IA (Fase 5), pendente só da disponibilidade
+      da API gratuita do Gemini (ver nota de status no topo deste README).
 
 ## Próximas fases
 
-Ver o histórico de commits e o briefing original para o detalhamento completo. Resumo:
-
-- **Fase 7** — testes ponta a ponta, acessibilidade, desempenho, documentação final, checklist de
-  entrega.
+Todas as 7 fases do briefing original estão implementadas. Os itens em aberto são os da lista de
+limitações conhecidas e do checklist de entrega acima — nenhum deles bloqueia o uso diário do app
+por Michel e Helena.

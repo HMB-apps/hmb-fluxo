@@ -1,23 +1,28 @@
+import { lazy } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { useAuth } from '../auth/AuthProvider'
 import { AppLayout } from '../components/layout/AppLayout'
 import { LoginPage } from '../pages/LoginPage'
 import { CreateOrganizationPage } from '../pages/CreateOrganizationPage'
 import { AcceptInvitationPage } from '../pages/AcceptInvitationPage'
-import { SettingsPage } from '../pages/SettingsPage'
-import { ClientsPage } from '../pages/ClientsPage'
-import { ClientDetailPage } from '../pages/ClientDetailPage'
-import { ProjectsPage } from '../pages/ProjectsPage'
-import { BoardPage } from '../pages/BoardPage'
-import { CompletedPage } from '../pages/CompletedPage'
-import { TrashPage } from '../pages/TrashPage'
-import { MyDayPage } from '../pages/MyDayPage'
-import { TeamPage } from '../pages/TeamPage'
-import { CalendarPage } from '../pages/CalendarPage'
-import { TimelinePage } from '../pages/TimelinePage'
-import { InboxPage } from '../pages/InboxPage'
-import { RecurrencesPage } from '../pages/RecurrencesPage'
 import { getPendingInvitationToken } from '../auth/pendingInvitation'
+
+// Carregadas sob demanda (Fase 7): reduz o pacote inicial só ao necessário
+// para autenticar — o resto do app chega em pedaços, um por rota, conforme
+// a pessoa navega.
+const SettingsPage = lazy(() => import('../pages/SettingsPage').then((m) => ({ default: m.SettingsPage })))
+const ClientsPage = lazy(() => import('../pages/ClientsPage').then((m) => ({ default: m.ClientsPage })))
+const ClientDetailPage = lazy(() => import('../pages/ClientDetailPage').then((m) => ({ default: m.ClientDetailPage })))
+const ProjectsPage = lazy(() => import('../pages/ProjectsPage').then((m) => ({ default: m.ProjectsPage })))
+const BoardPage = lazy(() => import('../pages/BoardPage').then((m) => ({ default: m.BoardPage })))
+const CompletedPage = lazy(() => import('../pages/CompletedPage').then((m) => ({ default: m.CompletedPage })))
+const TrashPage = lazy(() => import('../pages/TrashPage').then((m) => ({ default: m.TrashPage })))
+const MyDayPage = lazy(() => import('../pages/MyDayPage').then((m) => ({ default: m.MyDayPage })))
+const TeamPage = lazy(() => import('../pages/TeamPage').then((m) => ({ default: m.TeamPage })))
+const CalendarPage = lazy(() => import('../pages/CalendarPage').then((m) => ({ default: m.CalendarPage })))
+const TimelinePage = lazy(() => import('../pages/TimelinePage').then((m) => ({ default: m.TimelinePage })))
+const InboxPage = lazy(() => import('../pages/InboxPage').then((m) => ({ default: m.InboxPage })))
+const RecurrencesPage = lazy(() => import('../pages/RecurrencesPage').then((m) => ({ default: m.RecurrencesPage })))
 
 export function AppRoutes() {
   const { loading, user, needsOrganization } = useAuth()
