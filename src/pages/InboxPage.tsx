@@ -3,6 +3,7 @@ import { useAuth } from '../auth/AuthProvider'
 import { useInboxEntries } from '../hooks/useOrgData'
 import {
   createInboxEntry,
+  discardInboxEntry,
   getLatestInterpretation,
   interpretInboxEntry,
 } from '../data/repositories/inboxRepository'
@@ -77,6 +78,12 @@ export function InboxPage() {
     }
   }
 
+  async function handleDiscardEntry(entryId: string) {
+    if (!window.confirm('Descartar este item da caixa de entrada? Ele sai do histórico, mas nenhuma tarefa já criada a partir dele é afetada.')) return
+    await discardInboxEntry(entryId)
+    reload()
+  }
+
   return (
     <div>
       <h1>Caixa de entrada</h1>
@@ -121,18 +128,30 @@ export function InboxPage() {
               </span>
               <span>{new Date(entry.createdAt).toLocaleString('pt-BR')}</span>
             </div>
-            {entry.status === 'failed' && (
+            <div style={{ display: 'flex', gap: 12, marginTop: 4 }}>
+              {entry.status === 'failed' && (
+                <button
+                  type="button"
+                  className="link-button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setManualFallback(entry)
+                  }}
+                >
+                  Transformar manualmente
+                </button>
+              )}
               <button
                 type="button"
                 className="link-button"
                 onClick={(e) => {
                   e.stopPropagation()
-                  setManualFallback(entry)
+                  void handleDiscardEntry(entry.id)
                 }}
               >
-                Transformar manualmente
+                Descartar
               </button>
-            )}
+            </div>
           </div>
         ))
       )}
