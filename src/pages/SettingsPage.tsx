@@ -16,6 +16,8 @@ import { useRealtimeTable } from '../hooks/useRealtimeTable'
 import { createCategory, updateCategory } from '../data/repositories/categoryRepository'
 import { WorkScheduleSection } from '../components/settings/WorkScheduleSection'
 import { AiSettingsSection } from '../components/settings/AiSettingsSection'
+import { TemplatesSection } from '../components/settings/TemplatesSection'
+import { ExportSection } from '../components/settings/ExportSection'
 
 export function SettingsPage() {
   const { profile, organization, user } = useAuth()
@@ -272,6 +274,16 @@ export function SettingsPage() {
       <section className="settings-section">
         <h2>Integração com IA</h2>
         <AiSettingsSection />
+      </section>
+
+      <section className="settings-section">
+        <h2>Modelos de trabalho</h2>
+        <TemplatesSection />
+      </section>
+
+      <section className="settings-section">
+        <h2>Exportação e backup</h2>
+        <ExportSection />
       </section>
     </div>
   )

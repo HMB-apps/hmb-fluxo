@@ -4,7 +4,6 @@ import { AppLayout } from '../components/layout/AppLayout'
 import { LoginPage } from '../pages/LoginPage'
 import { CreateOrganizationPage } from '../pages/CreateOrganizationPage'
 import { AcceptInvitationPage } from '../pages/AcceptInvitationPage'
-import { PlaceholderPage } from '../pages/PlaceholderPage'
 import { SettingsPage } from '../pages/SettingsPage'
 import { ClientsPage } from '../pages/ClientsPage'
 import { ClientDetailPage } from '../pages/ClientDetailPage'
@@ -17,6 +16,7 @@ import { TeamPage } from '../pages/TeamPage'
 import { CalendarPage } from '../pages/CalendarPage'
 import { TimelinePage } from '../pages/TimelinePage'
 import { InboxPage } from '../pages/InboxPage'
+import { RecurrencesPage } from '../pages/RecurrencesPage'
 import { getPendingInvitationToken } from '../auth/pendingInvitation'
 
 export function AppRoutes() {
@@ -68,7 +68,7 @@ export function AppRoutes() {
           <Route path="/clientes" element={<ClientsPage />} />
           <Route path="/clientes/:id" element={<ClientDetailPage />} />
           <Route path="/projetos" element={<ProjectsPage />} />
-          <Route path="/recorrencias" element={<PlaceholderPage title="Recorrências" phase="Fase 6" />} />
+          <Route path="/recorrencias" element={<RecurrencesPage />} />
           <Route path="/concluidos" element={<CompletedPage />} />
           <Route path="/lixeira" element={<TrashPage />} />
           <Route path="/configuracoes" element={<SettingsPage />} />

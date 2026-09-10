@@ -6,16 +6,16 @@ instalável, com banco de dados central (Supabase) e autenticação individual p
 > Nome, cores e demais itens de identidade ficam centralizados em [`src/config/branding.ts`](src/config/branding.ts)
 > para facilitar troca futura.
 
-Este README cobre as **Fases 1 a 5**: autenticação, organização HMB, convites, políticas de
+Este README cobre as **Fases 1 a 6**: autenticação, organização HMB, convites, políticas de
 segurança (RLS), o núcleo de gestão (clientes, projetos, categorias, tarefas com CRUD completo,
 lixeira, histórico, notificações internas), as visualizações operacionais do dia a dia (Meu Dia,
 Quadro Kanban com arrastar-e-soltar, Calendário, Linha do Tempo, capacidade de agenda), o
 planejamento inteligente (prioridade sugerida, dependências entre tarefas, planejador automático
-com prévia e desfazer) e a Caixa de Entrada Inteligente com IA (Google Gemini, gratuito). As fases
-restantes (recorrências, modelos de trabalho, exportação/backup administrativos, refinamento final)
-serão implementadas em seguida, sem remover o que já funciona aqui.
+com prévia e desfazer), a Caixa de Entrada Inteligente com IA (Google Gemini, gratuito) e a rotina e
+segurança dos dados (recorrências, modelos de trabalho, exportação administrativa). A fase restante
+(refinamento final, ponta a ponta) será implementada em seguida, sem remover o que já funciona aqui.
 
-> Status: Fases 1 a 4 validadas de ponta a ponta em um projeto Supabase real (`hmb-fluxo`, região
+> Status: Fases 1 a 4 e 6 validadas de ponta a ponta em um projeto Supabase real (`hmb-fluxo`, região
 > `sa-east-1`). A Fase 5 (Caixa de Entrada com IA) está implementada e publicada (Edge Function
 > `interpret-inbox` + Google Gemini), mas a validação final ficou pendente: no momento do teste, a
 > API gratuita do Gemini estava respondendo `503 UNAVAILABLE` ("alta demanda") de forma persistente
@@ -90,6 +90,7 @@ O que cada migration faz:
 | `0025_rls_fase5.sql` | RLS da Caixa de Entrada, interpretações e preferências de IA |
 | `0026_realtime_fase5.sql` | Habilita Realtime nas três tabelas acima |
 | `0027`–`0029` | Ajustes do modelo padrão do Gemini conforme o Google descontinuava versões durante os testes (histórico — ver `supabase/migrations/`) |
+| `0030_recurrence_rules_and_templates.sql` | Tabelas `recurrence_rules` (recorrência de tarefas), `task_templates`/`template_steps` (modelos de trabalho), colunas `recurrence_rule_id`/`occurrence_date` em `tasks`, RLS e Realtime das três tabelas novas |
 
 ### 3.3 Variáveis de ambiente
 
@@ -253,6 +254,30 @@ Com a organização criada, o app já opera de verdade:
   digitado e os nomes de clientes/categorias já cadastrados — nunca o histórico completo, seção
   24.4).
 
+## 5.5 Rotina e segurança dos dados (Fase 6)
+
+- **Recorrências** (`/recorrencias` e a seção "Recorrência" dentro do formulário de tarefa): uma
+  tarefa qualquer pode virar o "modelo" de uma recorrência diária, semanal (em dias específicos da
+  semana), mensal (num dia do mês, ajustado automaticamente em meses mais curtos) ou por intervalo
+  de dias, com data final opcional. O botão **Gerar próximas demandas** cria as ocorrências que
+  ainda faltam dentro de uma janela de 60 dias à frente, clonando cliente, projeto, categoria,
+  estimativa e responsável da tarefa-modelo; nunca duplica — cada geração parte do dia seguinte à
+  última data já gerada, e um índice único no banco (`recurrence_rule_id` + `occurrence_date`)
+  garante isso mesmo que o botão seja clicado mais de uma vez. A lógica de calcular as datas de
+  ocorrência é pura e testada sem banco (`src/domain/recurrence.ts`).
+- **Modelos de trabalho** (Configurações → Modelos de trabalho, seção 19 do briefing): cadastre um
+  conjunto de etapas reaplicável (ex.: "Criação de landing page", "Campanha Google/Meta Ads",
+  "Relatório mensal") com duração estimada e dependências entre etapas. **Aplicar** um modelo cria
+  uma tarefa por etapa (todas com o cliente/projeto/responsável escolhidos na hora), já encadeando
+  as dependências conforme a ordem definida no modelo — a etapa 2 só fica liberada quando a etapa 1
+  é concluída, exatamente como as dependências manuais da Fase 4.
+- **Exportação administrativa e backup** (Configurações → Exportação e backup, seção 32 do
+  briefing): gera e baixa um arquivo JSON com todos os clientes, projetos, categorias, tarefas,
+  tags, dependências, modelos de trabalho, recorrências e configurações de agenda da organização —
+  útil como cópia de segurança manual, complementar aos backups automáticos do Supabase (ver seção
+  11 "Backup e restauração" abaixo). Como o Row Level Security já restringe cada tabela à própria
+  organização, essa exportação nunca pode trazer dados de outra organização, mesmo por engano.
+
 ## 6. Testes
 
 ```bash
@@ -300,11 +325,44 @@ Feito por qualquer administrador em **Configurações → Equipe**:
 
 ## 11. Backup e restauração
 
-A Fase 1 não implementa ainda a tela de exportação administrativa (prevista para a Fase 6). Até lá,
-use os recursos nativos do Supabase:
+Estratégia em duas camadas, conforme a seção 32 do briefing:
 
-- **Backups automáticos**: painel do Supabase → Database → Backups (diário no plano Pro).
-- **Backup manual**: `pg_dump` via connection string do projeto (Settings → Database).
+1. **Backup automático do Supabase** (infraestrutura): painel do Supabase → Database → Backups.
+   No plano gratuito, o Supabase mantém snapshots de curta duração; no plano Pro, backups diários
+   com retenção configurável e Point-in-Time Recovery. Restauração é feita pelo próprio painel
+   (Database → Backups → Restore) ou abrindo um chamado com o suporte Supabase.
+2. **Backup manual sob demanda** (nível aplicação, Fase 6): em Configurações → Exportação e
+   backup, o botão **Baixar backup em JSON** gera um arquivo com todo o conteúdo operacional da
+   organização (ver seção 5.5). Guarde esse arquivo em um local seguro (ex.: pasta compartilhada
+   da HMB) periodicamente — ele serve como cópia legível e portátil, independente do Supabase.
+   Restauração a partir dele é manual (reimportar via SQL/Table Editor), pois o app não oferece
+   ainda um "importar backup" automático — decisão intencional, para evitar sobrescritas
+   acidentais de dados em produção.
+
+Para uma cópia técnica completa do banco (schema + dados), `pg_dump` via connection string do
+projeto (Settings → Database) continua disponível a qualquer momento.
+
+## 11.1 Testes de RLS e isolamento entre organizações
+
+Verificação recomendada sempre que uma tabela ou política de RLS nova for adicionada:
+
+1. Crie uma segunda organização de teste (outro usuário, "Criar espaço de trabalho" com um nome
+   diferente de "HMB Negócios Digitais").
+2. Cadastre um cliente, uma tarefa e um modelo de trabalho nessa organização de teste.
+3. Faça login de volta com Michel ou Helena (organização real) e confirme que **nada** da
+   organização de teste aparece em nenhuma tela, incluindo a exportação em JSON.
+4. Pelo SQL Editor do Supabase (que roda como `service_role`, então ignora RLS por padrão),
+   confirme que as linhas de ambas as organizações existem no banco — se o passo 3 não mostrou
+   nada mas o SQL Editor mostra as duas, o isolamento está funcionando corretamente.
+5. Rode `get_advisors` (tipo `security`) pelo painel do Supabase ou MCP após qualquer migration
+   nova — todas as tabelas de negócio devem aparecer com RLS ativado; os únicos avisos esperados
+   são sobre as funções `SECURITY DEFINER` intencionais (`accept_invitation`,
+   `claim_first_organization`, `get_invitation_preview`, `handle_new_user`, `is_org_member`,
+   `is_org_admin`) e o aviso de "leaked password protection" (fora do escopo deste app).
+
+Todas as tabelas criadas até a Fase 6 têm RLS ativado e políticas que verificam participação ativa
+na organização (`is_org_member`/`is_org_admin`) — confirmado nesta fase repetindo os passos acima
+sobre `recurrence_rules`, `task_templates` e `template_steps`.
 
 ## 12. Atualização de versão
 
@@ -325,7 +383,8 @@ src/
     clients/      formulário de cliente
     projects/     formulário de projeto
     tasks/        formulário completo de tarefa, cartão e coluna do Kanban
-    settings/     configuração de horário de trabalho e integração com IA
+    settings/     configuração de horário de trabalho, integração com IA, modelos de
+                  trabalho e exportação/backup
     inbox/        revisão das demandas interpretadas pela IA
     planner/      prévia do planejamento automático
     common/       Modal genérico e outros componentes reutilizáveis
@@ -336,11 +395,12 @@ src/
     repositories/ acesso a dados por entidade (única camada que fala com o Supabase)
   domain/         tipos e regras de negócio puros, independentes do formato das tabelas e
                   do React — capacity.ts (capacidade/carga), priority.ts (prioridade
-                  sugerida), dependencies.ts (ciclos e ordenação) e planner.ts (motor do
-                  planejador automático), todos testados sem precisar de banco
+                  sugerida), dependencies.ts (ciclos e ordenação), planner.ts (motor do
+                  planejador automático) e recurrence.ts (cálculo de ocorrências de
+                  recorrência), todos testados sem precisar de banco
   hooks/          useOrgData (clientes/projetos/categorias/tarefas/membros/horários/
-                  bloqueios/caixa de entrada com Realtime embutido) e useRealtimeTable
-                  (assinatura genérica por tabela)
+                  bloqueios/caixa de entrada/recorrências/modelos de trabalho, com
+                  Realtime embutido) e useRealtimeTable (assinatura genérica por tabela)
   pages/          telas roteadas
 supabase/
   migrations/     migrations SQL versionadas, numeradas e aditivas
@@ -363,7 +423,7 @@ componentes React — apenas o inverso. Isso mantém a lógica testável sem pre
 - A chave usada no frontend é sempre a `anon public key`. A `service_role` nunca deve ser exposta
   no navegador nem commitada.
 
-## Limitações conhecidas (Fases 1 a 5)
+## Limitações conhecidas (Fases 1 a 6)
 
 - Convites são compartilhados manualmente por link — não há envio automático de e-mail (exigiria
   configurar um serviço de e-mail transacional; decisão adiada por não ser bloqueadora).
@@ -372,8 +432,8 @@ componentes React — apenas o inverso. Isso mantém a lógica testável sem pre
   briefing).
 - Categorias podem ser criadas/desativadas em Configurações, mas a reordenação visual (arrastar
   para cima/baixo) ainda não tem interface própria — dá para ajustar via banco se necessário.
-- Recorrências, anexos, lembretes e divisão de tarefas longas em blocos de foco (seções 16.4, 20,
-  21 do briefing) ainda não existem — chegam na Fase 6.
+- Anexos, lembretes e divisão automática de tarefas longas em blocos de foco (seções 16.4 e 21 do
+  briefing) ainda não existem.
 - Caixa de Entrada: só aceita texto por enquanto — áudio, imagens, PDFs e links (seção 10.2) ficam
   para uma evolução futura, já previstos no banco (a tabela `inbox_entries` guarda o texto bruto
   independente de como a interpretação evolui).
@@ -393,15 +453,21 @@ componentes React — apenas o inverso. Isso mantém a lógica testável sem pre
   pelo horário planejado).
 - Salvamento do formulário de tarefa é explícito (botão Salvar) com indicação de
   salvando/erro/conflito, não autosave campo a campo.
-- Exportação administrativa e backup automatizado pelo app ainda não existem (Fase 6); usar os
-  recursos nativos do Supabase enquanto isso.
 - Interações de arrastar-e-soltar (Quadro, Equipe, Linha do Tempo) usam `@dnd-kit` com sensor de
   ponteiro padrão — funcionam normalmente com mouse/touch reais; alguns ambientes de automação de
   navegador têm dificuldade em simular o gesto de arrastar.
+- Recorrência é configurada a partir de uma tarefa existente (seção "Recorrência" no formulário de
+  edição) — não há um formulário dedicado de "nova recorrência" independente de uma tarefa; a
+  página `/recorrencias` é só de visualização e geração/remoção das regras já criadas.
+- Geração de ocorrências de recorrência é manual (botão "Gerar próximas demandas"), não há ainda um
+  job agendado no servidor que gere automaticamente em segundo plano — o horizonte de 60 dias à
+  frente cobre isso na prática, bastando gerar de vez em quando.
+- Restauração de um backup em JSON (seção 11) é manual — não existe ainda uma tela de "importar
+  backup" dentro do app.
 
 ## Próximas fases
 
 Ver o histórico de commits e o briefing original para o detalhamento completo. Resumo:
 
-- **Fase 6** — recorrências, notificações, modelos de trabalho, exportação e backup administrativos.
-- **Fase 7** — testes ponta a ponta, acessibilidade, desempenho, documentação final.
+- **Fase 7** — testes ponta a ponta, acessibilidade, desempenho, documentação final, checklist de
+  entrega.

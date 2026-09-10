@@ -9,11 +9,15 @@ import { listTasks } from '../data/repositories/taskRepository'
 import { listWorkSchedules, listCalendarBlocks } from '../data/repositories/scheduleRepository'
 import { listDependenciesForOrganization } from '../data/repositories/dependencyRepository'
 import { listInboxEntries } from '../data/repositories/inboxRepository'
+import { listRecurrenceRules } from '../data/repositories/recurrenceRepository'
+import { listTaskTemplates } from '../data/repositories/templateRepository'
 import type { Client, Project, Category, TaskListItem } from '../domain/task'
 import type { MemberWithProfile } from '../domain/types'
 import type { WorkSchedule, CalendarBlock } from '../domain/schedule'
 import type { TaskDependency } from '../domain/planning'
 import type { InboxEntry } from '../domain/inbox'
+import type { RecurrenceRuleRecord } from '../domain/recurrence'
+import type { TaskTemplateWithSteps } from '../domain/templates'
 
 function useOrgResource<T>(
   table: string,
@@ -85,4 +89,12 @@ export function useDependencies() {
 
 export function useInboxEntries() {
   return useOrgResource<InboxEntry>('inbox_entries', (orgId) => listInboxEntries(orgId))
+}
+
+export function useRecurrenceRules() {
+  return useOrgResource<RecurrenceRuleRecord>('recurrence_rules', (orgId) => listRecurrenceRules(orgId))
+}
+
+export function useTaskTemplates() {
+  return useOrgResource<TaskTemplateWithSteps>('task_templates', (orgId) => listTaskTemplates(orgId))
 }

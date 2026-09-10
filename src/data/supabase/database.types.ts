@@ -819,6 +819,191 @@ export type Database = {
           },
         ]
       }
+      recurrence_rules: {
+        Row: {
+          active: boolean
+          created_at: string
+          created_by: string
+          day_of_month: number | null
+          days_of_week: number[] | null
+          end_date: string | null
+          frequency: string
+          id: string
+          interval_days: number | null
+          last_generated_date: string | null
+          organization_id: string
+          start_date: string
+          task_id: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          created_by: string
+          day_of_month?: number | null
+          days_of_week?: number[] | null
+          end_date?: string | null
+          frequency: string
+          id?: string
+          interval_days?: number | null
+          last_generated_date?: string | null
+          organization_id: string
+          start_date: string
+          task_id: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          created_by?: string
+          day_of_month?: number | null
+          days_of_week?: number[] | null
+          end_date?: string | null
+          frequency?: string
+          id?: string
+          interval_days?: number | null
+          last_generated_date?: string | null
+          organization_id?: string
+          start_date?: string
+          task_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'recurrence_rules_created_by_fkey'
+            columns: ['created_by']
+            isOneToOne: false
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'recurrence_rules_organization_id_fkey'
+            columns: ['organization_id']
+            isOneToOne: false
+            referencedRelation: 'organizations'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'recurrence_rules_task_id_fkey'
+            columns: ['task_id']
+            isOneToOne: false
+            referencedRelation: 'tasks'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      task_templates: {
+        Row: {
+          active: boolean
+          category_id: string | null
+          created_at: string
+          created_by: string
+          default_estimate_minutes: number | null
+          description: string | null
+          id: string
+          name: string
+          organization_id: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          category_id?: string | null
+          created_at?: string
+          created_by: string
+          default_estimate_minutes?: number | null
+          description?: string | null
+          id?: string
+          name: string
+          organization_id: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          category_id?: string | null
+          created_at?: string
+          created_by?: string
+          default_estimate_minutes?: number | null
+          description?: string | null
+          id?: string
+          name?: string
+          organization_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'task_templates_category_id_fkey'
+            columns: ['category_id']
+            isOneToOne: false
+            referencedRelation: 'categories'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'task_templates_created_by_fkey'
+            columns: ['created_by']
+            isOneToOne: false
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'task_templates_organization_id_fkey'
+            columns: ['organization_id']
+            isOneToOne: false
+            referencedRelation: 'organizations'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      template_steps: {
+        Row: {
+          created_at: string
+          depends_on_position: number | null
+          description: string | null
+          estimate_minutes: number | null
+          id: string
+          organization_id: string
+          position: number
+          template_id: string
+          title: string
+        }
+        Insert: {
+          created_at?: string
+          depends_on_position?: number | null
+          description?: string | null
+          estimate_minutes?: number | null
+          id?: string
+          organization_id: string
+          position: number
+          template_id: string
+          title: string
+        }
+        Update: {
+          created_at?: string
+          depends_on_position?: number | null
+          description?: string | null
+          estimate_minutes?: number | null
+          id?: string
+          organization_id?: string
+          position?: number
+          template_id?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'template_steps_organization_id_fkey'
+            columns: ['organization_id']
+            isOneToOne: false
+            referencedRelation: 'organizations'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'template_steps_template_id_fkey'
+            columns: ['template_id']
+            isOneToOne: false
+            referencedRelation: 'task_templates'
+            referencedColumns: ['id']
+          },
+        ]
+      }
       task_tags: {
         Row: {
           tag_id: string
@@ -868,6 +1053,7 @@ export type Database = {
           impact: string | null
           internal_target_at: string | null
           manual_priority: string | null
+          occurrence_date: string | null
           organization_id: string
           parent_task_id: string | null
           planned_end_at: string | null
@@ -875,6 +1061,7 @@ export type Database = {
           priority_reason: string | null
           priority_score: number | null
           project_id: string | null
+          recurrence_rule_id: string | null
           row_version: number
           schedule_locked: boolean
           source_text: string | null
@@ -904,6 +1091,7 @@ export type Database = {
           impact?: string | null
           internal_target_at?: string | null
           manual_priority?: string | null
+          occurrence_date?: string | null
           organization_id: string
           parent_task_id?: string | null
           planned_end_at?: string | null
@@ -911,6 +1099,7 @@ export type Database = {
           priority_reason?: string | null
           priority_score?: number | null
           project_id?: string | null
+          recurrence_rule_id?: string | null
           row_version?: number
           schedule_locked?: boolean
           source_text?: string | null
@@ -940,6 +1129,7 @@ export type Database = {
           impact?: string | null
           internal_target_at?: string | null
           manual_priority?: string | null
+          occurrence_date?: string | null
           organization_id?: string
           parent_task_id?: string | null
           planned_end_at?: string | null
@@ -947,6 +1137,7 @@ export type Database = {
           priority_reason?: string | null
           priority_score?: number | null
           project_id?: string | null
+          recurrence_rule_id?: string | null
           row_version?: number
           schedule_locked?: boolean
           source_text?: string | null
@@ -1013,6 +1204,13 @@ export type Database = {
             columns: ['project_id']
             isOneToOne: false
             referencedRelation: 'projects'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'tasks_recurrence_rule_id_fkey'
+            columns: ['recurrence_rule_id']
+            isOneToOne: false
+            referencedRelation: 'recurrence_rules'
             referencedColumns: ['id']
           },
           {
@@ -1083,3 +1281,4 @@ export type TaskStatus =
 
 export type TaskPriority = 'critical' | 'high' | 'normal' | 'low'
 export type ProjectStatus = 'active' | 'paused' | 'closed'
+export type RecurrenceFrequency = 'daily' | 'weekly' | 'monthly' | 'interval'

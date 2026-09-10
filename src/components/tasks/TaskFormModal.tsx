@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Modal } from '../common/Modal'
 import { useAuth } from '../../auth/AuthProvider'
 import { useClients, useProjects, useCategories, useMembers, useDependencies, useTasks } from '../../hooks/useOrgData'
@@ -10,10 +10,20 @@ import {
   type TaskInput,
 } from '../../data/repositories/taskRepository'
 import { addDependency, removeDependency } from '../../data/repositories/dependencyRepository'
+import {
+  createRecurrenceRule,
+  deleteRecurrenceRule,
+  generateRecurrenceInstances,
+  getRecurrenceRuleForTask,
+} from '../../data/repositories/recurrenceRepository'
 import { computeSuggestedPriority } from '../../domain/priority'
 import { wouldCreateCycle } from '../../domain/dependencies'
+import { todayKey } from '../../domain/capacity'
 import { TASK_STATUS_LABELS, TASK_PRIORITY_LABELS } from '../../domain/task'
 import type { Task, TaskListItem, TaskPriority, TaskStatus } from '../../domain/task'
+import type { RecurrenceFrequency, RecurrenceRuleRecord } from '../../domain/recurrence'
+
+const WEEKDAY_LABELS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb']
 
 function toDateTimeLocal(value: string | null): string {
   if (!value) return ''
@@ -70,8 +80,28 @@ export function TaskFormModal({
   const [newDependencyId, setNewDependencyId] = useState('')
   const [dependencyError, setDependencyError] = useState<string | null>(null)
 
+  const [recurrenceRule, setRecurrenceRule] = useState<RecurrenceRuleRecord | null>(null)
+  const [recurrenceLoading, setRecurrenceLoading] = useState(false)
+  const [recurrenceFrequency, setRecurrenceFrequency] = useState<RecurrenceFrequency>('weekly')
+  const [recurrenceDaysOfWeek, setRecurrenceDaysOfWeek] = useState<number[]>([])
+  const [recurrenceDayOfMonth, setRecurrenceDayOfMonth] = useState('1')
+  const [recurrenceIntervalDays, setRecurrenceIntervalDays] = useState('7')
+  const [recurrenceEndDate, setRecurrenceEndDate] = useState('')
+  const [recurrenceStatus, setRecurrenceStatus] = useState<string | null>(null)
+
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error' | 'conflict'>('idle')
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!task) return
+    let cancelled = false
+    getRecurrenceRuleForTask(task.id).then((rule) => {
+      if (!cancelled) setRecurrenceRule(rule)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [task])
 
   const blockedByDeps = useMemo(
     () => (task ? allDependencies.filter((d) => d.blockedTaskId === task.id) : []),
@@ -183,6 +213,54 @@ export function TaskFormModal({
   async function handleRemoveDependency(id: string) {
     await removeDependency(id)
     reloadDependencies()
+  }
+
+  function toggleRecurrenceDay(day: number) {
+    setRecurrenceDaysOfWeek((current) => (current.includes(day) ? current.filter((d) => d !== day) : [...current, day].sort()))
+  }
+
+  async function handleCreateRecurrence() {
+    if (!task || !organization || !user) return
+    setRecurrenceLoading(true)
+    setRecurrenceStatus(null)
+    try {
+      const rule = await createRecurrenceRule(organization.id, user.id, task.id, {
+        frequency: recurrenceFrequency,
+        startDate: todayKey(),
+        endDate: recurrenceEndDate || null,
+        daysOfWeek: recurrenceFrequency === 'weekly' ? recurrenceDaysOfWeek : null,
+        dayOfMonth: recurrenceFrequency === 'monthly' ? Number(recurrenceDayOfMonth) : null,
+        intervalDays: recurrenceFrequency === 'interval' ? Number(recurrenceIntervalDays) : null,
+      })
+      setRecurrenceRule(rule)
+      setRecurrenceStatus('Recorrência criada.')
+    } catch (err) {
+      setRecurrenceStatus(err instanceof Error ? err.message : 'Não foi possível criar a recorrência.')
+    } finally {
+      setRecurrenceLoading(false)
+    }
+  }
+
+  async function handleRemoveRecurrence() {
+    if (!recurrenceRule) return
+    if (!window.confirm('Remover a recorrência? As tarefas já geradas continuam existindo.')) return
+    await deleteRecurrenceRule(recurrenceRule.id)
+    setRecurrenceRule(null)
+  }
+
+  async function handleGenerateOccurrences() {
+    if (!task || !recurrenceRule || !user) return
+    setRecurrenceLoading(true)
+    setRecurrenceStatus(null)
+    try {
+      const created = await generateRecurrenceInstances(recurrenceRule, task, user.id)
+      setRecurrenceStatus(created.length > 0 ? `${created.length} demanda(s) gerada(s).` : 'Nenhuma demanda nova para gerar agora.')
+      reloadTasks()
+    } catch (err) {
+      setRecurrenceStatus(err instanceof Error ? err.message : 'Não foi possível gerar as ocorrências.')
+    } finally {
+      setRecurrenceLoading(false)
+    }
   }
 
   const availableForDependency = task
@@ -370,6 +448,81 @@ export function TaskFormModal({
               </button>
             </div>
             {dependencyError && <p className="auth-error">{dependencyError}</p>}
+          </div>
+        )}
+
+        {task && (
+          <div className="form-field-full">
+            <h3 style={{ marginTop: 0 }}>Recorrência</h3>
+            {recurrenceRule ? (
+              <div style={{ background: '#f8fafc', borderRadius: 6, padding: '8px 12px' }}>
+                <p style={{ margin: '0 0 8px' }}>
+                  Repete: <strong>{recurrenceRule.frequency}</strong>
+                  {recurrenceRule.frequency === 'weekly' && recurrenceRule.daysOfWeek && (
+                    <> ({recurrenceRule.daysOfWeek.map((d) => WEEKDAY_LABELS[d]).join(', ')})</>
+                  )}
+                  {recurrenceRule.frequency === 'monthly' && <> (dia {recurrenceRule.dayOfMonth})</>}
+                  {recurrenceRule.frequency === 'interval' && <> (a cada {recurrenceRule.intervalDays} dias)</>}
+                  {recurrenceRule.endDate && <> até {recurrenceRule.endDate}</>}
+                </p>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button type="button" onClick={() => void handleGenerateOccurrences()} disabled={recurrenceLoading}>
+                    Gerar próximas demandas
+                  </button>
+                  <button type="button" className="link-button" onClick={() => void handleRemoveRecurrence()}>
+                    Remover recorrência
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="form-grid">
+                <label>
+                  Frequência
+                  <select value={recurrenceFrequency} onChange={(e) => setRecurrenceFrequency(e.target.value as RecurrenceFrequency)}>
+                    <option value="daily">Diária</option>
+                    <option value="weekly">Semanal</option>
+                    <option value="monthly">Mensal</option>
+                    <option value="interval">Intervalo de dias</option>
+                  </select>
+                </label>
+                {recurrenceFrequency === 'weekly' && (
+                  <div className="form-field-full" style={{ display: 'flex', gap: 8 }}>
+                    {WEEKDAY_LABELS.map((label, day) => (
+                      <label key={day} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                        <input type="checkbox" checked={recurrenceDaysOfWeek.includes(day)} onChange={() => toggleRecurrenceDay(day)} />
+                        {label}
+                      </label>
+                    ))}
+                  </div>
+                )}
+                {recurrenceFrequency === 'monthly' && (
+                  <label>
+                    Dia do mês
+                    <input type="number" min={1} max={31} value={recurrenceDayOfMonth} onChange={(e) => setRecurrenceDayOfMonth(e.target.value)} />
+                  </label>
+                )}
+                {recurrenceFrequency === 'interval' && (
+                  <label>
+                    A cada quantos dias
+                    <input type="number" min={1} value={recurrenceIntervalDays} onChange={(e) => setRecurrenceIntervalDays(e.target.value)} />
+                  </label>
+                )}
+                <label>
+                  Repetir até (opcional)
+                  <input type="date" value={recurrenceEndDate} onChange={(e) => setRecurrenceEndDate(e.target.value)} />
+                </label>
+                <div className="form-field-full">
+                  <button
+                    type="button"
+                    onClick={() => void handleCreateRecurrence()}
+                    disabled={recurrenceLoading || (recurrenceFrequency === 'weekly' && recurrenceDaysOfWeek.length === 0)}
+                  >
+                    Tornar recorrente
+                  </button>
+                </div>
+              </div>
+            )}
+            {recurrenceStatus && <p style={{ fontSize: 12, marginTop: 8 }}>{recurrenceStatus}</p>}
           </div>
         )}
 
