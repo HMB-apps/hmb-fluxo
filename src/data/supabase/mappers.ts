@@ -1,4 +1,4 @@
-import type { Database, InvitationStatus, MemberRole, MemberStatus } from './database.types'
+import type { Database, InvitationStatus, MemberRole, MemberStatus, OrganizationStatus } from './database.types'
 import type { Invitation, MemberWithProfile, Organization, OrganizationMember, Profile } from '../../domain/types'
 
 type OrganizationRow = Database['public']['Tables']['organizations']['Row']
@@ -10,6 +10,9 @@ export function mapOrganization(row: OrganizationRow): Organization {
   return {
     id: row.id,
     name: row.name,
+    status: row.status as OrganizationStatus,
+    primaryColor: row.primary_color,
+    logoPath: row.logo_path,
     createdBy: row.created_by,
     createdAt: row.created_at,
     updatedAt: row.updated_at,

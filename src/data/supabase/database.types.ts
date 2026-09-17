@@ -665,22 +665,46 @@ export type Database = {
           created_at: string
           created_by: string
           id: string
+          logo_path: string | null
           name: string
+          primary_color: string | null
+          status: string
           updated_at: string
         }
         Insert: {
           created_at?: string
           created_by: string
           id?: string
+          logo_path?: string | null
           name: string
+          primary_color?: string | null
+          status?: string
           updated_at?: string
         }
         Update: {
           created_at?: string
           created_by?: string
           id?: string
+          logo_path?: string | null
           name?: string
+          primary_color?: string | null
+          status?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      platform_admins: {
+        Row: {
+          created_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -1228,6 +1252,7 @@ export type Database = {
     }
     Functions: {
       accept_invitation: { Args: { invitation_token: string }; Returns: string }
+      approve_organization: { Args: { target_org_id: string }; Returns: undefined }
       claim_first_organization: { Args: { org_name: string }; Returns: string }
       get_invitation_preview: {
         Args: { invitation_token: string }
@@ -1238,8 +1263,24 @@ export type Database = {
           status: string
         }[]
       }
+      get_organization_usage: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          client_count: number
+          inbox_item_count: number
+          member_count: number
+          organization_id: string
+          organization_name: string
+          project_count: number
+          status: string
+          task_count: number
+        }[]
+      }
       is_org_admin: { Args: { target_org_id: string }; Returns: boolean }
       is_org_member: { Args: { target_org_id: string }; Returns: boolean }
+      is_platform_admin: { Args: Record<PropertyKey, never>; Returns: boolean }
+      reject_organization: { Args: { target_org_id: string }; Returns: undefined }
+      request_new_organization: { Args: { org_name: string }; Returns: string }
     }
     Enums: {
       [_ in never]: never
@@ -1266,6 +1307,7 @@ export type TablesUpdate<T extends keyof DefaultSchema['Tables']> = DefaultSchem
 export type MemberRole = 'admin' | 'member'
 export type MemberStatus = 'invited' | 'active' | 'disabled'
 export type InvitationStatus = 'pending' | 'accepted' | 'revoked' | 'expired'
+export type OrganizationStatus = 'pending' | 'active' | 'rejected' | 'suspended'
 
 export type TaskStatus =
   | 'inbox'

@@ -3,6 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { supabase } from '../data/supabase/client'
 import { getMyOrganization } from '../data/repositories/organizationRepository'
 import { getProfile } from '../data/repositories/profileRepository'
+import { isPlatformAdmin as fetchIsPlatformAdmin } from '../data/repositories/platformRepository'
 import type { Organization, Profile } from '../domain/types'
 
 interface AuthState {
@@ -13,6 +14,8 @@ interface AuthState {
   organization: Organization | null
   /** true quando o usuário está autenticado mas ainda não pertence a nenhuma organização */
   needsOrganization: boolean
+  /** true só para quem está em platform_admins (Fase 8) — gerencia aprovação de organizações e uso da plataforma. */
+  isPlatformAdmin: boolean
   refresh: () => Promise<void>
   signOut: () => Promise<void>
 }
@@ -24,19 +27,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [organization, setOrganization] = useState<Organization | null>(null)
+  const [isPlatformAdmin, setIsPlatformAdmin] = useState(false)
 
   const loadUserData = useCallback(async (currentSession: Session | null) => {
     if (!currentSession?.user) {
       setProfile(null)
       setOrganization(null)
+      setIsPlatformAdmin(false)
       return
     }
-    const [profileResult, orgResult] = await Promise.all([
+    const [profileResult, orgResult, platformAdminResult] = await Promise.all([
       getProfile(currentSession.user.id),
       getMyOrganization(),
+      fetchIsPlatformAdmin(),
     ])
     setProfile(profileResult)
     setOrganization(orgResult)
+    setIsPlatformAdmin(platformAdminResult)
   }, [])
 
   const refresh = useCallback(async () => {
@@ -80,10 +87,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       profile,
       organization,
       needsOrganization: Boolean(session?.user) && organization === null,
+      isPlatformAdmin,
       refresh,
       signOut,
     }),
-    [loading, session, profile, organization, refresh, signOut],
+    [loading, session, profile, organization, isPlatformAdmin, refresh, signOut],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

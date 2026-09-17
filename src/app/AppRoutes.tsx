@@ -5,6 +5,9 @@ import { AppLayout } from '../components/layout/AppLayout'
 import { LoginPage } from '../pages/LoginPage'
 import { CreateOrganizationPage } from '../pages/CreateOrganizationPage'
 import { AcceptInvitationPage } from '../pages/AcceptInvitationPage'
+import { RequestOrganizationPage } from '../pages/RequestOrganizationPage'
+import { OrganizationPendingPage } from '../pages/OrganizationPendingPage'
+import { SuperadminPage } from '../pages/SuperadminPage'
 import { getPendingInvitationToken } from '../auth/pendingInvitation'
 
 // Carregadas sob demanda (Fase 7): reduz o pacote inicial só ao necessário
@@ -25,7 +28,7 @@ const InboxPage = lazy(() => import('../pages/InboxPage').then((m) => ({ default
 const RecurrencesPage = lazy(() => import('../pages/RecurrencesPage').then((m) => ({ default: m.RecurrencesPage })))
 
 export function AppRoutes() {
-  const { loading, user, needsOrganization } = useAuth()
+  const { loading, user, needsOrganization, organization, isPlatformAdmin } = useAuth()
 
   if (loading) {
     return (
@@ -40,9 +43,15 @@ export function AppRoutes() {
   // trabalho" em vez de retomar o aceite do convite pendente.
   const pendingInvitationToken = user && needsOrganization ? getPendingInvitationToken() : null
 
+  // Fase 8: organização existe, mas ainda não foi aprovada por um superadmin
+  // da plataforma — bloqueia o uso normal do app sem cair de volta na tela
+  // de "criar espaço de trabalho" (a organização já existe, só não está ativa).
+  const orgPending = Boolean(user) && organization !== null && organization.status === 'pending'
+
   return (
     <Routes>
       <Route path="/convite/:token" element={<AcceptInvitationPage />} />
+      <Route path="/solicitar-acesso" element={<RequestOrganizationPage />} />
 
       {!user && (
         <>
@@ -50,6 +59,8 @@ export function AppRoutes() {
           <Route path="*" element={<Navigate to="/login" replace />} />
         </>
       )}
+
+      {user && isPlatformAdmin && <Route path="/superadmin" element={<SuperadminPage />} />}
 
       {user && needsOrganization && pendingInvitationToken && (
         <Route path="*" element={<Navigate to={`/convite/${pendingInvitationToken}`} replace />} />
@@ -61,7 +72,9 @@ export function AppRoutes() {
         </>
       )}
 
-      {user && !needsOrganization && (
+      {user && !needsOrganization && orgPending && <Route path="*" element={<OrganizationPendingPage />} />}
+
+      {user && !needsOrganization && !orgPending && (
         <Route element={<AppLayout />}>
           <Route index element={<Navigate to="/meu-dia" replace />} />
           <Route path="/meu-dia" element={<MyDayPage />} />

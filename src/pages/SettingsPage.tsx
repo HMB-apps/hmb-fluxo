@@ -18,6 +18,7 @@ import { WorkScheduleSection } from '../components/settings/WorkScheduleSection'
 import { AiSettingsSection } from '../components/settings/AiSettingsSection'
 import { TemplatesSection } from '../components/settings/TemplatesSection'
 import { ExportSection } from '../components/settings/ExportSection'
+import { OrganizationBrandingSection } from '../components/settings/OrganizationBrandingSection'
 
 export function SettingsPage() {
   const { profile, organization, user } = useAuth()
@@ -285,6 +286,13 @@ export function SettingsPage() {
         <h2>Exportação e backup</h2>
         <ExportSection />
       </section>
+
+      {isAdmin && (
+        <section className="settings-section">
+          <h2>Identidade visual</h2>
+          <OrganizationBrandingSection />
+        </section>
+      )}
     </div>
   )
 }

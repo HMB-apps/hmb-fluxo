@@ -32,10 +32,35 @@ export async function getMyOrganization(): Promise<Organization | null> {
   return mapOrganization(org)
 }
 
+/** @deprecated Fase 8: use requestNewOrganization — mantida sem uso para não remover uma função em produção sem necessidade. */
 export async function claimFirstOrganization(orgName: string): Promise<string> {
   const { data, error } = await supabase.rpc('claim_first_organization', { org_name: orgName })
   if (error) throw error
   return data as string
+}
+
+/**
+ * Cria a organização já como "pending" (Fase 8) — só passa a funcionar de
+ * verdade depois que um superadmin da plataforma aprova.
+ */
+export async function requestNewOrganization(orgName: string): Promise<string> {
+  const { data, error } = await supabase.rpc('request_new_organization', { org_name: orgName })
+  if (error) throw error
+  return data as string
+}
+
+export async function updateOrganizationBranding(
+  organizationId: string,
+  input: { primaryColor?: string | null; logoPath?: string | null },
+): Promise<void> {
+  const { error } = await supabase
+    .from('organizations')
+    .update({
+      ...(input.primaryColor !== undefined ? { primary_color: input.primaryColor } : {}),
+      ...(input.logoPath !== undefined ? { logo_path: input.logoPath } : {}),
+    })
+    .eq('id', organizationId)
+  if (error) throw error
 }
 
 export async function listOrganizationMembers(organizationId: string): Promise<MemberWithProfile[]> {

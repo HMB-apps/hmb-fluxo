@@ -2,8 +2,11 @@ import { Suspense } from 'react'
 import { Outlet } from 'react-router-dom'
 import { Sidebar } from './Sidebar'
 import { Header } from './Header'
+import { useOrganizationTheme } from '../../hooks/useOrganizationTheme'
 
 export function AppLayout() {
+  useOrganizationTheme()
+
   return (
     <div className="app-shell">
       <Sidebar />

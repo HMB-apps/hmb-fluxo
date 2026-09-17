@@ -1,12 +1,15 @@
 import { useState, type FormEvent } from 'react'
 import { useAuth } from '../auth/AuthProvider'
-import { claimFirstOrganization } from '../data/repositories/organizationRepository'
+import { requestNewOrganization } from '../data/repositories/organizationRepository'
 import { branding } from '../config/branding'
 
 /**
  * Exibida quando um usuário autenticado ainda não pertence a nenhuma
- * organização. Na prática, isso só deve acontecer para o primeiro
- * administrador (Michel); Helena sempre chega via link de convite.
+ * organização e não veio de um link de convite nem de /solicitar-acesso —
+ * ex.: alguém criado direto no painel do Supabase por um administrador.
+ * A partir da Fase 8, a organização criada aqui também nasce "pending":
+ * quem enviar precisa aguardar aprovação de um superadmin da plataforma
+ * (o app leva sozinho para essa tela de espera depois do submit).
  */
 export function CreateOrganizationPage() {
   const { refresh, signOut } = useAuth()
@@ -19,10 +22,10 @@ export function CreateOrganizationPage() {
     setSubmitting(true)
     setError(null)
     try {
-      await claimFirstOrganization(name.trim())
+      await requestNewOrganization(name.trim())
       await refresh()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Não foi possível criar o espaço de trabalho.')
+      setError(err instanceof Error ? err.message : 'Não foi possível enviar a solicitação.')
     } finally {
       setSubmitting(false)
     }
@@ -33,8 +36,8 @@ export function CreateOrganizationPage() {
       <div className="auth-card">
         <h1>Bem-vindo ao {branding.productName}</h1>
         <p className="auth-subtitle">
-          Sua conta ainda não está em nenhum espaço de trabalho. Se você é o primeiro a acessar o sistema,
-          crie o espaço da sua equipe agora. Caso contrário, peça um convite ao administrador.
+          Sua conta ainda não está em nenhum espaço de trabalho. Informe o nome da sua organização — um
+          administrador da plataforma revisa e aprova antes de você poder usar o sistema.
         </p>
 
         <form onSubmit={handleSubmit} className="auth-form">
@@ -44,7 +47,7 @@ export function CreateOrganizationPage() {
           </label>
           {error && <p className="auth-error">{error}</p>}
           <button type="submit" disabled={submitting || !name.trim()}>
-            {submitting ? 'Criando…' : 'Criar espaço de trabalho'}
+            {submitting ? 'Enviando…' : 'Solicitar acesso'}
           </button>
           <button type="button" className="link-button" onClick={() => void signOut()}>
             Sair

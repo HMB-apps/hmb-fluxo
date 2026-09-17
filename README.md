@@ -6,25 +6,25 @@ instalável, com banco de dados central (Supabase) e autenticação individual p
 > Nome, cores e demais itens de identidade ficam centralizados em [`src/config/branding.ts`](src/config/branding.ts)
 > para facilitar troca futura.
 
-Este README cobre as **Fases 1 a 7** (todo o briefing original): autenticação, organização HMB,
-convites, políticas de segurança (RLS), o núcleo de gestão (clientes, projetos, categorias, tarefas
-com CRUD completo, lixeira, histórico, notificações internas), as visualizações operacionais do dia
-a dia (Meu Dia, Quadro Kanban com arrastar-e-soltar, Calendário, Linha do Tempo, capacidade de
-agenda), o planejamento inteligente (prioridade sugerida, dependências entre tarefas, planejador
-automático com prévia e desfazer), a Caixa de Entrada Inteligente com IA (Google Gemini, gratuito),
-a rotina e segurança dos dados (recorrências, modelos de trabalho, exportação administrativa) e o
-polimento final (testes ponta a ponta, tratamento de erros, desempenho, acessibilidade, manual de
-uso). Para quem só vai usar o dia a dia, veja o [Manual de uso](MANUAL_DE_USO.md), sem termos
-técnicos.
+Este README cobre as **Fases 1 a 8**: autenticação, organização HMB, convites, políticas de
+segurança (RLS), o núcleo de gestão (clientes, projetos, categorias, tarefas com CRUD completo,
+lixeira, histórico, notificações internas), as visualizações operacionais do dia a dia (Meu Dia,
+Quadro Kanban com arrastar-e-soltar, Calendário, Linha do Tempo, capacidade de agenda), o
+planejamento inteligente (prioridade sugerida, dependências entre tarefas, planejador automático
+com prévia e desfazer), a Caixa de Entrada Inteligente com IA (Google Gemini, gratuito), a rotina e
+segurança dos dados (recorrências, modelos de trabalho, exportação administrativa), o polimento
+final (testes ponta a ponta, tratamento de erros, desempenho, acessibilidade, manual de uso) e a
+multi-organização self-service com superadmin e identidade visual por organização. Para quem só vai
+usar o dia a dia, veja o [Manual de uso](MANUAL_DE_USO.md), sem termos técnicos.
 
-> Status: Fases 1 a 4, 6 e 7 validadas de ponta a ponta em um projeto Supabase real (`hmb-fluxo`,
-> região `sa-east-1`). A Fase 5 (Caixa de Entrada com IA) está implementada e publicada (Edge
-> Function `interpret-inbox` + Google Gemini), mas a validação final ficou pendente: no momento do
-> teste, a API gratuita do Gemini estava respondendo `503 UNAVAILABLE` ("alta demanda") de forma
-> persistente — um problema temporário do lado do Google, não do código (o fluxo de erro/retry do
-> app tratou isso corretamente, mostrando "Falha na interpretação" com opção de tentar de novo ou
-> criar a tarefa manualmente). Vale testar de novo mais tarde pelo botão **Testar conexão** em
-> Configurações → Integração com IA.
+> Status: Fases 1 a 7 validadas de ponta a ponta em um projeto Supabase real (`hmb-fluxo`, região
+> `sa-east-1`), incluindo a Caixa de Entrada com IA (Google Gemini) — o 503 de "alta demanda" que
+> bloqueava o teste final foi um problema temporário do lado do Google e já não ocorre mais. A Fase
+> 8 (multi-organização, superadmin, identidade visual) está implementada e com toda a camada de
+> banco/RLS testada diretamente via SQL, mas a validação de ponta a ponta pela interface (alguém se
+> cadastrando de verdade em `/solicitar-acesso`) ficou pendente: o limite de envio de e-mails do
+> plano gratuito do Supabase ("email rate limit exceeded") bloqueou os cadastros de teste no momento
+> da implementação — não é um bug do código. Vale repetir esse teste específico mais tarde.
 
 ---
 
@@ -93,6 +93,8 @@ O que cada migration faz:
 | `0026_realtime_fase5.sql` | Habilita Realtime nas três tabelas acima |
 | `0027`–`0029` | Ajustes do modelo padrão do Gemini conforme o Google descontinuava versões durante os testes (histórico — ver `supabase/migrations/`) |
 | `0030_recurrence_rules_and_templates.sql` | Tabelas `recurrence_rules` (recorrência de tarefas), `task_templates`/`template_steps` (modelos de trabalho), colunas `recurrence_rule_id`/`occurrence_date` em `tasks`, RLS e Realtime das três tabelas novas |
+| `0031_platform_admin_and_org_approval.sql` | Coluna `organizations.status` (aprovação), tabela `platform_admins`, colunas `primary_color`/`logo_path` em `organizations`, `is_org_member`/`is_org_admin` passam a exigir organização `active`, funções `is_platform_admin`/`request_new_organization`/`approve_organization`/`reject_organization`/`get_organization_usage`, bucket de Storage `org-logos` |
+| `0032`–`0034` | Correções encontradas ao testar a `0031`: esconder `prevent_org_admin_status_change` de ser chamada como RPC pública, restaurar seu `grant` para `authenticated` (necessário para o trigger disparar), e criar `is_org_participant` para a própria organização/vínculo continuarem visíveis para o dono mesmo com status `pending` (sem isso, quem acabasse de se cadastrar via `/solicitar-acesso` ficaria preso em loop) |
 
 ### 3.3 Variáveis de ambiente
 
@@ -303,6 +305,36 @@ Com a organização criada, o app já opera de verdade:
 - **Manual de uso**: [`MANUAL_DE_USO.md`](MANUAL_DE_USO.md) — guia não técnico para o dia a dia de
   Michel e Helena, cobrindo cada item do menu e as tarefas mais comuns.
 
+## 5.7 Multi-organização self-service, superadmin e identidade visual (Fase 8)
+
+Pensando numa eventual comercialização futura do HMB Fluxo, esta fase abre a arquitetura
+multi-tenant que já existia (cada organização isolada por RLS) para autoatendimento com controle
+central, sem tocar em nenhuma tabela de negócio existente:
+
+- **Cadastro de nova organização** (`/solicitar-acesso`, pública): qualquer pessoa pode criar uma
+  conta e o nome da própria empresa. A organização nasce com status `pending` — ela existe no banco,
+  mas nenhuma tabela de negócio (clientes, tarefas, etc.) fica acessível até ser aprovada. Enquanto
+  pendente, a pessoa vê uma tela de "aguardando aprovação" ao entrar.
+- **Superadmin da plataforma**: um papel acima de "admin de organização", guardado numa tabela
+  dedicada (`platform_admins`), populada só por migration — hoje só Michel. Aparece um item extra
+  "Painel da plataforma" no menu lateral só para ele, levando a `/superadmin`: lista as organizações
+  pendentes com botões **Aprovar**/**Rejeitar**, e uma tabela de uso (contagem de membros, clientes,
+  tarefas, projetos e itens da caixa de entrada por organização) para acompanhar o volume relativo
+  entre organizações — não mede bytes reais de disco contra o limite do plano gratuito do Supabase,
+  só contagens de linhas.
+- **Isolamento**: o superadmin enxerga a linha de `organizations` de qualquer empresa (nome, status,
+  cor, logo) e as contagens agregadas do painel de uso — nunca os dados de negócio em si (nenhuma
+  tabela como `clients`/`tasks`/`projects` foi alterada para admitir o superadmin; elas continuam
+  só com `is_org_member`/`is_org_admin`, que agora também exigem a organização estar `active`).
+  **Depois que uma organização é aprovada, ela gerencia a própria equipe livremente** — convites de
+  novos integrantes não passam por aprovação do superadmin, só a criação da organização em si.
+- **Identidade visual por organização** (Configurações → Identidade visual, só para admins de
+  organizações já aprovadas): escolher uma cor principal (aplicada no fundo do menu lateral) e
+  enviar uma logo (Storage bucket `org-logos`, um objeto por organização, path
+  `<organization_id>/logo.<ext>`), que substitui o nome do produto no topo do menu. Fica reservado
+  (mas vazio, sem imagem falsa) um espaço fixo de 32×32px no cabeçalho para um futuro logotipo do
+  próprio HMB Fluxo — menor e separado do logo de cada organização, a ser adicionado depois.
+
 ## 6. Testes
 
 ```bash
@@ -451,8 +483,10 @@ src/
                   recorrência), todos testados sem precisar de banco
   hooks/          useOrgData (clientes/projetos/categorias/tarefas/membros/horários/
                   bloqueios/caixa de entrada/recorrências/modelos de trabalho, com
-                  Realtime embutido) e useRealtimeTable (assinatura genérica por tabela)
-  pages/          telas roteadas
+                  Realtime embutido), useRealtimeTable (assinatura genérica por tabela)
+                  e useOrganizationTheme (aplica a cor customizada da organização, Fase 8)
+  pages/          telas roteadas, incluindo RequestOrganizationPage/OrganizationPendingPage/
+                  SuperadminPage (Fase 8)
 supabase/
   migrations/     migrations SQL versionadas, numeradas e aditivas
   functions/
@@ -474,7 +508,7 @@ componentes React — apenas o inverso. Isso mantém a lógica testável sem pre
 - A chave usada no frontend é sempre a `anon public key`. A `service_role` nunca deve ser exposta
   no navegador nem commitada.
 
-## Limitações conhecidas (Fases 1 a 7)
+## Limitações conhecidas (Fases 1 a 8)
 
 - Convites são compartilhados manualmente por link — não há envio automático de e-mail (exigiria
   configurar um serviço de e-mail transacional; decisão adiada por não ser bloqueadora).
@@ -488,10 +522,9 @@ componentes React — apenas o inverso. Isso mantém a lógica testável sem pre
 - Caixa de Entrada: só aceita texto por enquanto — áudio, imagens, PDFs e links (seção 10.2) ficam
   para uma evolução futura, já previstos no banco (a tabela `inbox_entries` guarda o texto bruto
   independente de como a interpretação evolui).
-- A validação de conexão com o Gemini foi feita, mas a interpretação de um texto real ainda não foi
-  confirmada de ponta a ponta — a API gratuita estava retornando `503` (alta demanda) no momento do
-  teste. O código e o fluxo de erro/retry estão prontos; falta só repetir o teste quando a API
-  estiver disponível (ver nota de status no topo deste README).
+- A interpretação da Caixa de Entrada por IA já foi confirmada de ponta a ponta com textos reais
+  (Google Gemini) — o `503` de "alta demanda" relatado durante a Fase 5 era mesmo temporário do
+  lado do Google.
 - O planejador automático (Fase 4) só agenda tarefas que ainda não têm início planejado — ele não
   replaneja o que já está na agenda. Para isso, continue movendo manualmente pelo Quadro, Equipe ou
   Linha do Tempo (que aplicam a mudança na hora). Ele também não divide uma tarefa em vários blocos
@@ -527,8 +560,22 @@ componentes React — apenas o inverso. Isso mantém a lógica testável sem pre
 - Não há telemetria/monitoramento de erros em produção (ex.: Sentry) — o `ErrorBoundary` evita a
   tela em branco, mas erros só ficam registrados no console do navegador de quem os encontrou; se
   isso passar a importar, é um serviço para adicionar depois, sem mudar a arquitetura atual.
+- O fluxo de cadastro público (`/solicitar-acesso`, Fase 8) teve toda a camada de banco/RLS testada
+  diretamente via SQL (aprovação, rejeição, isolamento entre organizações, bloqueio de uma
+  organização pendente/rejeitada), mas o cadastro em si pela interface não foi validado de ponta a
+  ponta — o limite de envio de e-mails do plano gratuito do Supabase ("email rate limit exceeded")
+  bloqueou os cadastros de teste no momento da implementação. Vale repetir esse teste específico
+  mais tarde, ou usar uma conta de e-mail real para o primeiro cadastro de verdade.
+- Uso por organização (painel do superadmin) mostra contagens de linhas, não bytes reais de disco
+  contra o limite do plano gratuito do Supabase — medir isso exigiria uma Edge Function chamando a
+  API de gerenciamento do Supabase com um token de conta inteira (fora de escopo por enquanto).
+- Só uma cor é customizável por organização (a de fundo do menu lateral); accent/erro/sucesso
+  continuam globais para não quebrar contraste. Só uma logo por organização (sem variante clara/
+  escura, já que o app não tem modo escuro).
+- Gerenciar quem é superadmin continua sendo uma operação de migration/SQL direto — não existe
+  ainda uma tela para adicionar/remover outros superadmins.
 
-## Checklist de entrega (Fase 7)
+## Checklist de entrega (Fase 7 e 8)
 
 - [x] Todas as 7 fases do briefing implementadas e documentadas neste README.
 - [x] `npx tsc -b` sem erros.
@@ -547,11 +594,14 @@ componentes React — apenas o inverso. Isso mantém a lógica testável sem pre
 - [x] Deploy em produção com HTTPS — https://hmb-fluxo.vercel.app (Vercel, deploy automático a
       partir de `master`, ver seção 8).
 - [ ] Ícones PNG definitivos, quando a HMB tiver uma logo final (ver limitação acima).
-- [ ] Validação de ponta a ponta da interpretação por IA (Fase 5), pendente só da disponibilidade
-      da API gratuita do Gemini (ver nota de status no topo deste README).
+- [x] Migration `0031`–`0034` (Fase 8) aplicada no projeto Supabase real; `get_advisors` sem avisos
+      novos além dos já documentados; testes diretos via SQL confirmando aprovação/rejeição e
+      isolamento entre organizações.
+- [x] `npx tsc -b`, `npm run test` e `npm run build` limpos após a Fase 8.
+- [ ] Validação de ponta a ponta do cadastro público (`/solicitar-acesso`) pela interface, pendente
+      só do limite de e-mail do plano gratuito do Supabase liberar (ver limitação acima).
 
 ## Próximas fases
 
-Todas as 7 fases do briefing original estão implementadas. Os itens em aberto são os da lista de
-limitações conhecidas e do checklist de entrega acima — nenhum deles bloqueia o uso diário do app
-por Michel e Helena.
+Todas as 8 fases implementadas. Os itens em aberto são os da lista de limitações conhecidas e do
+checklist de entrega acima — nenhum deles bloqueia o uso diário do app por Michel e Helena.

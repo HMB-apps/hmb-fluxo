@@ -5,10 +5,14 @@
 
 export type MemberRole = 'admin' | 'member'
 export type MemberStatus = 'invited' | 'active' | 'disabled'
+export type OrganizationStatus = 'pending' | 'active' | 'rejected' | 'suspended'
 
 export interface Organization {
   id: string
   name: string
+  status: OrganizationStatus
+  primaryColor: string | null
+  logoPath: string | null
   createdBy: string
   createdAt: string
   updatedAt: string
