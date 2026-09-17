@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/AuthProvider'
 import {
   approveOrganization,
@@ -71,9 +72,14 @@ export function SuperadminPage() {
       <div style={{ width: '100%', maxWidth: 960 }}>
         <div className="form-actions" style={{ marginTop: 0 }}>
           <h1>Painel da plataforma — {branding.productName}</h1>
-          <button type="button" className="link-button" onClick={() => void signOut()}>
-            Sair
-          </button>
+          <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+            <Link to="/meu-dia" className="link-button">
+              ← Voltar para o app
+            </Link>
+            <button type="button" className="link-button" onClick={() => void signOut()}>
+              Sair
+            </button>
+          </div>
         </div>
 
         {error && <p className="auth-error">{error}</p>}
