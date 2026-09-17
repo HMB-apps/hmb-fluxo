@@ -95,6 +95,7 @@ O que cada migration faz:
 | `0030_recurrence_rules_and_templates.sql` | Tabelas `recurrence_rules` (recorrência de tarefas), `task_templates`/`template_steps` (modelos de trabalho), colunas `recurrence_rule_id`/`occurrence_date` em `tasks`, RLS e Realtime das três tabelas novas |
 | `0031_platform_admin_and_org_approval.sql` | Coluna `organizations.status` (aprovação), tabela `platform_admins`, colunas `primary_color`/`logo_path` em `organizations`, `is_org_member`/`is_org_admin` passam a exigir organização `active`, funções `is_platform_admin`/`request_new_organization`/`approve_organization`/`reject_organization`/`get_organization_usage`, bucket de Storage `org-logos` |
 | `0032`–`0034` | Correções encontradas ao testar a `0031`: esconder `prevent_org_admin_status_change` de ser chamada como RPC pública, restaurar seu `grant` para `authenticated` (necessário para o trigger disparar), e criar `is_org_participant` para a própria organização/vínculo continuarem visíveis para o dono mesmo com status `pending` (sem isso, quem acabasse de se cadastrar via `/solicitar-acesso` ficaria preso em loop) |
+| `0035_superadmin_org_management.sql` | Amplia o painel do superadmin: `profiles`/`organization_members` passam a admitir `is_platform_admin()` na leitura (só leitura, só para listar membros de qualquer organização), e novas funções `suspend_organization`/`reactivate_organization`/`rename_organization_as_platform_admin`/`set_member_status_as_platform_admin` |
 
 ### 3.3 Variáveis de ambiente
 
@@ -317,15 +318,24 @@ central, sem tocar em nenhuma tabela de negócio existente:
   pendente, a pessoa vê uma tela de "aguardando aprovação" ao entrar.
 - **Superadmin da plataforma**: um papel acima de "admin de organização", guardado numa tabela
   dedicada (`platform_admins`), populada só por migration — hoje só Michel. Aparece um item extra
-  "Painel da plataforma" no menu lateral só para ele, levando a `/superadmin`: lista as organizações
-  pendentes com botões **Aprovar**/**Rejeitar**, e uma tabela de uso (contagem de membros, clientes,
-  tarefas, projetos e itens da caixa de entrada por organização) para acompanhar o volume relativo
-  entre organizações — não mede bytes reais de disco contra o limite do plano gratuito do Supabase,
-  só contagens de linhas.
+  "Painel da plataforma" no menu lateral só para ele, levando a `/superadmin`, que reúne:
+  - **Organizações pendentes**: aprovar/rejeitar solicitações novas.
+  - **Todas as organizações**: lista completa (qualquer status), com link para o detalhe de cada
+    uma e um atalho para **suspender** uma organização já ativa (ex.: inadimplência, sem apagar
+    nada) ou **reativá-la** depois.
+  - **Detalhe de uma organização** (`/superadmin/organizacoes/:id`): editar o nome, ver/alterar o
+    status, e a lista de integrantes com opção de **bloquear/reativar** qualquer um deles — mesmo
+    controle que um admin de organização já tem sobre a própria equipe, agora disponível ao
+    superadmin para qualquer organização.
+  - **Uso por organização**: contagem de membros, clientes, tarefas, projetos e itens da caixa de
+    entrada — não mede bytes reais de disco contra o limite do plano gratuito do Supabase, só
+    contagens de linhas. Organizações que passam de um limiar informativo (ex.: mais de 2.000
+    tarefas) aparecem destacadas com ⚠️ — é só um aviso, não bloqueia nada automaticamente.
 - **Isolamento**: o superadmin enxerga a linha de `organizations` de qualquer empresa (nome, status,
-  cor, logo) e as contagens agregadas do painel de uso — nunca os dados de negócio em si (nenhuma
-  tabela como `clients`/`tasks`/`projects` foi alterada para admitir o superadmin; elas continuam
-  só com `is_org_member`/`is_org_admin`, que agora também exigem a organização estar `active`).
+  cor, logo), os vínculos/perfis dos integrantes (só leitura, para a tela de detalhe) e as
+  contagens agregadas do painel de uso — nunca os dados de negócio em si (nenhuma tabela como
+  `clients`/`tasks`/`projects` foi alterada para admitir o superadmin; elas continuam só com
+  `is_org_member`/`is_org_admin`, que agora também exigem a organização estar `active`).
   **Depois que uma organização é aprovada, ela gerencia a própria equipe livremente** — convites de
   novos integrantes não passam por aprovação do superadmin, só a criação da organização em si.
 - **Identidade visual por organização** (Configurações → Identidade visual, só para admins de
