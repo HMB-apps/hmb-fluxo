@@ -1,18 +1,31 @@
-import { lazy } from 'react'
+import { lazy, Suspense } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { useAuth } from '../auth/AuthProvider'
 import { AppLayout } from '../components/layout/AppLayout'
 import { LoginPage } from '../pages/LoginPage'
-import { CreateOrganizationPage } from '../pages/CreateOrganizationPage'
-import { AcceptInvitationPage } from '../pages/AcceptInvitationPage'
-import { RequestOrganizationPage } from '../pages/RequestOrganizationPage'
-import { OrganizationPendingPage } from '../pages/OrganizationPendingPage'
-import { SuperadminPage } from '../pages/SuperadminPage'
 import { getPendingInvitationToken } from '../auth/pendingInvitation'
 
 // Carregadas sob demanda (Fase 7): reduz o pacote inicial só ao necessário
 // para autenticar — o resto do app chega em pedaços, um por rota, conforme
-// a pessoa navega.
+// a pessoa navega. As telas fora do AppLayout (convite, solicitação de
+// acesso, painel do superadmin) também são lazy — o <Suspense> no final
+// deste arquivo cobre todas elas.
+const CreateOrganizationPage = lazy(() =>
+  import('../pages/CreateOrganizationPage').then((m) => ({ default: m.CreateOrganizationPage })),
+)
+const AcceptInvitationPage = lazy(() =>
+  import('../pages/AcceptInvitationPage').then((m) => ({ default: m.AcceptInvitationPage })),
+)
+const RequestOrganizationPage = lazy(() =>
+  import('../pages/RequestOrganizationPage').then((m) => ({ default: m.RequestOrganizationPage })),
+)
+const OrganizationPendingPage = lazy(() =>
+  import('../pages/OrganizationPendingPage').then((m) => ({ default: m.OrganizationPendingPage })),
+)
+const SuperadminPage = lazy(() => import('../pages/SuperadminPage').then((m) => ({ default: m.SuperadminPage })))
+const OrganizationDetailAdminPage = lazy(() =>
+  import('../pages/OrganizationDetailAdminPage').then((m) => ({ default: m.OrganizationDetailAdminPage })),
+)
 const SettingsPage = lazy(() => import('../pages/SettingsPage').then((m) => ({ default: m.SettingsPage })))
 const ClientsPage = lazy(() => import('../pages/ClientsPage').then((m) => ({ default: m.ClientsPage })))
 const ClientDetailPage = lazy(() => import('../pages/ClientDetailPage').then((m) => ({ default: m.ClientDetailPage })))
@@ -49,50 +62,63 @@ export function AppRoutes() {
   const orgPending = Boolean(user) && organization !== null && organization.status === 'pending'
 
   return (
-    <Routes>
-      <Route path="/convite/:token" element={<AcceptInvitationPage />} />
-      <Route path="/solicitar-acesso" element={<RequestOrganizationPage />} />
+    <Suspense
+      fallback={
+        <div className="auth-screen">
+          <p>Carregando…</p>
+        </div>
+      }
+    >
+      <Routes>
+        <Route path="/convite/:token" element={<AcceptInvitationPage />} />
+        <Route path="/solicitar-acesso" element={<RequestOrganizationPage />} />
 
-      {!user && (
-        <>
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="*" element={<Navigate to="/login" replace />} />
-        </>
-      )}
+        {!user && (
+          <>
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="*" element={<Navigate to="/login" replace />} />
+          </>
+        )}
 
-      {user && isPlatformAdmin && <Route path="/superadmin" element={<SuperadminPage />} />}
+        {user && isPlatformAdmin && (
+          <>
+            <Route path="/superadmin" element={<SuperadminPage />} />
+            <Route path="/superadmin/organizacoes/:id" element={<OrganizationDetailAdminPage />} />
+          </>
+        )}
 
-      {user && needsOrganization && pendingInvitationToken && (
-        <Route path="*" element={<Navigate to={`/convite/${pendingInvitationToken}`} replace />} />
-      )}
+        {user && needsOrganization && pendingInvitationToken && (
+          <Route path="*" element={<Navigate to={`/convite/${pendingInvitationToken}`} replace />} />
+        )}
 
-      {user && needsOrganization && !pendingInvitationToken && (
-        <>
-          <Route path="*" element={<CreateOrganizationPage />} />
-        </>
-      )}
+        {user && needsOrganization && !pendingInvitationToken && (
+          <>
+            <Route path="*" element={<CreateOrganizationPage />} />
+          </>
+        )}
 
-      {user && !needsOrganization && orgPending && <Route path="*" element={<OrganizationPendingPage />} />}
+        {user && !needsOrganization && orgPending && <Route path="*" element={<OrganizationPendingPage />} />}
 
-      {user && !needsOrganization && !orgPending && (
-        <Route element={<AppLayout />}>
-          <Route index element={<Navigate to="/meu-dia" replace />} />
-          <Route path="/meu-dia" element={<MyDayPage />} />
-          <Route path="/equipe" element={<TeamPage />} />
-          <Route path="/caixa-de-entrada" element={<InboxPage />} />
-          <Route path="/linha-do-tempo" element={<TimelinePage />} />
-          <Route path="/quadro" element={<BoardPage />} />
-          <Route path="/calendario" element={<CalendarPage />} />
-          <Route path="/clientes" element={<ClientsPage />} />
-          <Route path="/clientes/:id" element={<ClientDetailPage />} />
-          <Route path="/projetos" element={<ProjectsPage />} />
-          <Route path="/recorrencias" element={<RecurrencesPage />} />
-          <Route path="/concluidos" element={<CompletedPage />} />
-          <Route path="/lixeira" element={<TrashPage />} />
-          <Route path="/configuracoes" element={<SettingsPage />} />
-          <Route path="*" element={<Navigate to="/meu-dia" replace />} />
-        </Route>
-      )}
-    </Routes>
+        {user && !needsOrganization && !orgPending && (
+          <Route element={<AppLayout />}>
+            <Route index element={<Navigate to="/meu-dia" replace />} />
+            <Route path="/meu-dia" element={<MyDayPage />} />
+            <Route path="/equipe" element={<TeamPage />} />
+            <Route path="/caixa-de-entrada" element={<InboxPage />} />
+            <Route path="/linha-do-tempo" element={<TimelinePage />} />
+            <Route path="/quadro" element={<BoardPage />} />
+            <Route path="/calendario" element={<CalendarPage />} />
+            <Route path="/clientes" element={<ClientsPage />} />
+            <Route path="/clientes/:id" element={<ClientDetailPage />} />
+            <Route path="/projetos" element={<ProjectsPage />} />
+            <Route path="/recorrencias" element={<RecurrencesPage />} />
+            <Route path="/concluidos" element={<CompletedPage />} />
+            <Route path="/lixeira" element={<TrashPage />} />
+            <Route path="/configuracoes" element={<SettingsPage />} />
+            <Route path="*" element={<Navigate to="/meu-dia" replace />} />
+          </Route>
+        )}
+      </Routes>
+    </Suspense>
   )
 }

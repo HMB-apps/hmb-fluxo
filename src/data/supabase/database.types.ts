@@ -1278,9 +1278,20 @@ export type Database = {
       }
       is_org_admin: { Args: { target_org_id: string }; Returns: boolean }
       is_org_member: { Args: { target_org_id: string }; Returns: boolean }
+      is_org_participant: { Args: { target_org_id: string }; Returns: boolean }
       is_platform_admin: { Args: Record<PropertyKey, never>; Returns: boolean }
+      reactivate_organization: { Args: { target_org_id: string }; Returns: undefined }
       reject_organization: { Args: { target_org_id: string }; Returns: undefined }
+      rename_organization_as_platform_admin: {
+        Args: { new_name: string; target_org_id: string }
+        Returns: undefined
+      }
       request_new_organization: { Args: { org_name: string }; Returns: string }
+      set_member_status_as_platform_admin: {
+        Args: { new_status: string; target_member_id: string }
+        Returns: undefined
+      }
+      suspend_organization: { Args: { target_org_id: string }; Returns: undefined }
     }
     Enums: {
       [_ in never]: never
