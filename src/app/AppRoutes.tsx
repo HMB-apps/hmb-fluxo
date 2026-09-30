@@ -41,12 +41,25 @@ const InboxPage = lazy(() => import('../pages/InboxPage').then((m) => ({ default
 const RecurrencesPage = lazy(() => import('../pages/RecurrencesPage').then((m) => ({ default: m.RecurrencesPage })))
 
 export function AppRoutes() {
-  const { loading, user, needsOrganization, organization, isPlatformAdmin } = useAuth()
+  const { loading, user, needsOrganization, organization, isPlatformAdmin, loadError, refresh } = useAuth()
 
   if (loading) {
     return (
       <div className="auth-screen">
         <p>Carregando…</p>
+      </div>
+    )
+  }
+
+  if (user && loadError) {
+    return (
+      <div className="auth-screen">
+        <div className="auth-card">
+          <p>Não foi possível carregar seus dados agora. Isso costuma ser temporário — tente novamente.</p>
+          <button type="button" onClick={() => void refresh()}>
+            Tentar novamente
+          </button>
+        </div>
       </div>
     )
   }
